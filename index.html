@@ -296,13 +296,16 @@ let storeGroup=null, wallRects=[];
 const WALL_H=1.1,WALL_T=0.3,WALL_C=0xe6dccb;
 function wallSeg(x0,z0,x1,z1,parent,c=WALL_C,h=WALL_H){ // segmento de parede alinhado aos eixos
   const w=Math.abs(x1-x0)||WALL_T,d=Math.abs(z1-z0)||WALL_T;if(w<0.05||d<0.05)return;
-  box(w,h,d,c,(x0+x1)/2,h/2,(z0+z1)/2,parent);
+  const m=box(w,h,d,c,(x0+x1)/2,h/2,(z0+z1)/2,parent);
   wallRects.push({minX:Math.min(x0,x1)-(x0===x1?WALL_T/2:0),maxX:Math.max(x0,x1)+(x0===x1?WALL_T/2:0),minZ:Math.min(z0,z1)-(z0===z1?WALL_T/2:0),maxZ:Math.max(z0,z1)+(z0===z1?WALL_T/2:0)});
+  return m;
 }
 // parede horizontal (z fixo) com vãos [a,b]
-function wallWithGaps(x0,x1,z,gaps,parent,c){let x=x0;for(const [a,b] of gaps.slice().sort((p,q)=>p[0]-q[0])){wallSeg(x,z,a,z,parent,c);x=b;}wallSeg(x,z,x1,z,parent,c);}
+function wallWithGaps(x0,x1,z,gaps,parent,c,h){const out=[];let x=x0;for(const [a,b] of gaps.slice().sort((p,q)=>p[0]-q[0])){out.push(wallSeg(x,z,a,z,parent,c,h));x=b;}out.push(wallSeg(x,z,x1,z,parent,c,h));return out.filter(Boolean);}
 function floorPlane(x0,x1,z0,z1,matl,y,parent){const m=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,z1-z0),matl);m.rotation.x=-Math.PI/2;m.position.set((x0+x1)/2,y,(z0+z1)/2);m.receiveShadow=true;parent.add(m);return m;}
 function tileMat(c1,c2,line,rx,ry){const t=canvasTex(128,128,x=>{x.fillStyle=line;x.fillRect(0,0,128,128);x.fillStyle=c1;x.fillRect(3,3,58,58);x.fillRect(67,67,58,58);x.fillStyle=c2;x.fillRect(67,3,58,58);x.fillRect(3,67,58,58);},rx,ry);return new THREE.MeshLambertMaterial({map:t});}
+const _bathTex=new THREE.TextureLoader().load('assets/bath-tiles.png');_bathTex.colorSpace=THREE.SRGBColorSpace;_bathTex.wrapS=_bathTex.wrapT=THREE.RepeatWrapping;
+function bathTile(rx,ry){const t=_bathTex.clone();t.needsUpdate=true;t.repeat.set(rx,ry);return t;}
 function buildStore(){
   if(storeGroup)scene.remove(storeGroup);
   storeGroup=new THREE.Group();scene.add(storeGroup);wallRects=[];
@@ -323,9 +326,9 @@ function buildStore(){
   const sl=addStoreLabel(V((b.minX+b.maxX)/2,stockBack()+0.3),'Estoque');
   // banheiros
   if(has('bath')){
-    wallSeg(BATH.x0,BATH.z0,BATH.x0,BATH.z1,storeGroup,0xd6e6ee);
-    wallWithGaps(BATH.x0,BATH.x1,BATH.z1,[BATH.door],storeGroup,0xd6e6ee);
-    for(const x of[10.2,11.95])wallSeg(x,BATH.z0,x,-19.4,storeGroup,0xbcd3df,1.25);
+    const tiled=[wallSeg(BATH.x0,BATH.z0,BATH.x0,BATH.z1,storeGroup,0xffffff,1.3),...wallWithGaps(BATH.x0,BATH.x1,BATH.z1,[BATH.door],storeGroup,0xffffff,1.3)];
+    tiled.forEach(m=>{const g=m.geometry.parameters,len=Math.max(g.width,g.depth);m.material=new THREE.MeshLambertMaterial({map:bathTile(len/0.75,g.height/0.75)});});
+    for(const x of[10.2,11.95])wallSeg(x,BATH.z0,x,-19.4,storeGroup,0xf1ede2,1.4);   // divisórias das cabines
     addStoreLabel(V(11.3,-15.0),'🚻 Banheiros');
   }
   if(typeof forestLot!=='undefined')forestLot.forEach(m=>m.visible=!BACK());
@@ -431,20 +434,61 @@ function unlockProduct(i){S.unlocked[i]=true;S.stock[i]=0;buildShelf(i);buildPal
 
 // ---------- Banheiros ----------
 const stallObjs=[];
+const CHROME=0xc9d1da,CREAM=0xf1ede2,WOODL=0xe2b77c,WOODD=0xd29c5f;
+function signTex(){return canvasTex(128,128,x=>{x.fillStyle='#f4f1ea';x.beginPath();x.arc(64,64,60,0,7);x.fill();x.strokeStyle='#c9d1da';x.lineWidth=6;x.stroke();
+  x.fillStyle='#6b7480';const fig=(cx,skirt)=>{x.beginPath();x.arc(cx,36,9,0,7);x.fill();if(skirt){x.beginPath();x.moveTo(cx,48);x.lineTo(cx+15,82);x.lineTo(cx-15,82);x.fill();}else x.fillRect(cx-9,48,18,34);x.fillRect(cx-7,80,5,22);x.fillRect(cx+2,80,5,22);};
+  fig(42,false);fig(86,true);x.fillRect(62,34,4,64);},1,1);}
+function makeToilet(parent){const g=new THREE.Group();parent.add(g);
+  cyl(0.15,0.2,0.32,0xffffff,0,0.16,0.08,g,16);                                    // pé
+  const bowl=cyl(0.27,0.19,0.16,0xffffff,0,0.36,0.1,g,20);bowl.scale.z=1.2;        // bacia
+  const water=new THREE.Mesh(new THREE.CircleGeometry(0.19,18),mat(0xbfe3f2));water.rotation.x=-Math.PI/2;water.position.set(0,0.445,0.1);water.scale.y=1.2;g.add(water);
+  const seat=new THREE.Mesh(new THREE.TorusGeometry(0.21,0.045,8,22),mat(0xf6f7f9));seat.rotation.x=-Math.PI/2;seat.position.set(0,0.46,0.1);seat.scale.y=1.2;seat.castShadow=true;g.add(seat);
+  const lid=rbox(0.44,0.5,0.04,0xf8f9fb,0,0.72,-0.2,g,0.02);lid.rotation.x=-0.18;  // tampa levantada
+  rbox(0.52,0.4,0.2,0xffffff,0,0.62,-0.32,g,0.06);rbox(0.56,0.05,0.24,0xf6f7f9,0,0.845,-0.32,g,0.02);
+  cyl(0.035,0.035,0.02,CHROME,0.12,0.875,-0.32,g,10);
+  // suporte de papel cromado com rolo
+  box(0.03,0.03,0.14,CHROME,0.42,0.62,0.0,g);box(0.18,0.025,0.025,CHROME,0.42,0.62,0.07,g);
+  const roll=new THREE.Group();g.add(roll);roll.position.set(0.42,0.57,0.07);
+  const r=cyl(0.075,0.075,0.12,0xffffff,0,0,0,roll,14);r.rotation.z=Math.PI/2;
+  const sheet=new THREE.Mesh(new THREE.PlaneGeometry(0.11,0.16),mat(0xfafafa));sheet.position.set(0,-0.1,0.075);roll.add(sheet);
+  return {g,roll};}
+function makeSink(parent){const g=new THREE.Group();parent.add(g);
+  rbox(0.82,0.6,0.5,WOODD,0,0.38,0,g,0.06);
+  for(const x of[-0.2,0.2]){rbox(0.36,0.46,0.03,WOODL,x,0.37,0.255,g,0.04);box(0.02,0.1,0.02,CHROME,x+(x<0?0.13:-0.13),0.45,0.28,g);}
+  rbox(0.88,0.06,0.56,0xf3ead6,0,0.71,0,g,0.025);
+  const bs=new THREE.Mesh(new THREE.SphereGeometry(0.2,18,10,0,Math.PI*2,0,Math.PI/2),new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide}));bs.scale.set(1,0.5,0.75);bs.rotation.x=Math.PI;bs.position.set(-0.08,0.85,0.05);g.add(bs);
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(0.19,0.025,8,22),mat(0xffffff));rim.rotation.x=-Math.PI/2;rim.scale.y=0.75;rim.position.set(-0.08,0.85,0.05);g.add(rim);
+  cyl(0.025,0.025,0.22,CHROME,-0.08,0.85,-0.18,g,10);const sp=cyl(0.02,0.02,0.14,CHROME,-0.08,0.95,-0.12,g,8);sp.rotation.x=Math.PI/2;
+  cyl(0.05,0.055,0.14,0xf3ead6,0.28,0.81,0.02,g,12);cyl(0.012,0.012,0.06,CHROME,0.28,0.9,0.02,g,6);
+  const back=rbox(0.92,1.25,0.06,0xffffff,0,1.0,-0.28,g,0.02);back.material=new THREE.MeshLambertMaterial({map:bathTile(1.2,1.6)});
+  const fr=new THREE.Mesh(new THREE.TorusGeometry(0.27,0.035,8,28),mat(CREAM));fr.position.set(0,1.32,-0.24);g.add(fr);
+  const glass=new THREE.Mesh(new THREE.CircleGeometry(0.26,28),new THREE.MeshLambertMaterial({color:0xa9c2cf,emissive:0x1d2a30}));glass.position.set(0,1.32,-0.245);g.add(glass);
+  return g;}
 function buildBathroom(){
   if(stallObjs.length)return;
   STALLS.forEach((st,k)=>{
-    const g=new THREE.Group();g.position.copy(st.toilet);scene.add(g);
-    rbox(0.42,0.38,0.5,0xffffff,0,0.19,0.05,g,0.08);            // base
-    rbox(0.5,0.08,0.58,0xf3f6f8,0,0.42,0.08,g,0.04);           // assento
-    rbox(0.5,0.42,0.2,0xffffff,0,0.6,-0.22,g,0.05);            // caixa d'água
-    const roll=cyl(0.07,0.07,0.1,0xffffff,0.45,0.75,0.05,g,12);roll.rotation.z=Math.PI/2;
+    const holder=new THREE.Group();holder.position.copy(st.toilet);scene.add(holder);
+    const t=makeToilet(holder);
     const dirtFX=makeBathDirt(st);
-    const L=addLabel('box',()=>V(st.x,-19.6).setY(1.4));
-    stallObjs[k]={g,roll,dirtFX,L,busy:null,clean:0};updateStall(k);
+    const L=addLabel('box',()=>V(st.x,-19.6).setY(1.6));
+    stallObjs[k]={g:holder,roll:t.roll,dirtFX,L,busy:null,clean:0};updateStall(k);
   });
-  // pias
-  for(const z of[-17.8,-16.4]){rbox(0.5,0.85,0.6,0xd9e3ea,13.55,0.42,z,scene,0.05);cyl(0.17,0.12,0.08,0xffffff,13.55,0.9,z,scene,14);}
+  // divisórias: acabamento cromado, colunas e portas azuis abertas
+  for(const x of[10.2,11.95]){box(0.1,0.05,1.95,CHROME,x,1.42,-20.35);box(0.1,0.06,1.95,CHROME,x,0.03,-20.35);}
+  for(const x of[8.62,10.2,11.95,13.88])rbox(0.14,1.45,0.14,CREAM,x,0.725,-19.38,scene,0.04);
+  box(14-8.55,0.06,0.07,CHROME,(8.55+14)/2,1.47,-19.38);
+  [10.2,11.95,13.88].forEach(hx=>{const d=new THREE.Group();d.position.set(hx-0.08,0,-19.42);d.rotation.y=0.35;scene.add(d);
+    rbox(0.06,1.15,1.2,0xc4e6f7,0,0.68,-0.6,d,0.03);box(0.075,0.04,0.08,CHROME,-0.04,0.7,-1.05,d);
+    const ind=rbox(0.07,0.07,0.12,0x4bbf6b,-0.04,0.85,-1.05,d,0.01);});
+  // pias com espelho na parede leste
+  for(const z of[-17.8,-16.4]){const sk=makeSink(scene);sk.position.set(13.55,0,z);sk.rotation.y=-Math.PI/2;}
+  // porta de entrada aberta, com placa
+  for(const x of[BATH.door[0],BATH.door[1]])rbox(0.14,1.5,0.34,WOODD,x,0.75,BATH.z1,scene,0.04);
+  rbox(BATH.door[1]-BATH.door[0]+0.14,0.16,0.34,WOODD,(BATH.door[0]+BATH.door[1])/2,1.5,BATH.z1,scene,0.04);
+  const door=new THREE.Group();door.position.set(BATH.door[0]+0.08,0,BATH.z1-0.1);door.rotation.y=Math.PI/2-0.25;scene.add(door);
+  rbox(1.25,1.32,0.06,WOODL,0.64,0.7,0,door,0.03);box(0.05,0.18,0.06,CHROME,1.12,0.68,0.05,door);
+  const sign=new THREE.Mesh(new THREE.CircleGeometry(0.2,24),new THREE.MeshLambertMaterial({map:signTex()}));sign.position.set(0.64,1.0,0.035);door.add(sign);
+  const sign2=sign.clone();sign2.position.z=-0.035;sign2.rotation.y=Math.PI;door.add(sign2);
   buildTPPallet();
 }
 function updateStall(k){const o=stallObjs[k];if(!o)return;o.roll.visible=S.tp[k]>0;o.dirtFX.g.visible=S.dirty[k];
@@ -504,27 +548,67 @@ function updateCleanFX(dt){
 // ---------- Lanchonete ----------
 let snackObjs=null;
 function makeBurger(parent){const g=new THREE.Group();
-  const bun=new THREE.SphereGeometry(0.11,12,8,0,Math.PI*2,0,Math.PI/2);
-  const top=new THREE.Mesh(bun,mat(0xe0a050));top.position.y=0.07;top.scale.y=0.8;g.add(top);
-  cyl(0.115,0.115,0.035,0x5a3a22,0,0.055,0,g,14);cyl(0.12,0.12,0.012,0x6cbf4a,0,0.078,0,g,14);cyl(0.11,0.11,0.035,0xe0a050,0,0.02,0,g,14);
+  const top=new THREE.Mesh(new THREE.SphereGeometry(0.11,12,8,0,Math.PI*2,0,Math.PI/2),mat(0xe0a050));top.position.y=0.085;top.scale.y=0.8;g.add(top);
+  for(let i=0;i<5;i++){const s=new THREE.Mesh(new THREE.SphereGeometry(0.008,4,3),mat(0xfff3d6));const a=i*1.3;s.position.set(Math.cos(a)*0.06,0.15,Math.sin(a)*0.06);g.add(s);}
+  cyl(0.12,0.12,0.012,0x6cbf4a,0,0.08,0,g,14);cyl(0.11,0.11,0.012,0xe0463a,0,0.07,0,g,14);box(0.2,0.01,0.2,0xf6c33a,0,0.062,0,g).rotation.y=0.6;
+  cyl(0.115,0.115,0.035,0x5a3a22,0,0.045,0,g,14);cyl(0.11,0.11,0.03,0xe0a050,0,0.015,0,g,14);
   parent.add(g);return g;}
+function makePatty(parent){const p=cyl(0.1,0.1,0.03,0x7a4a2e,0,0,0,parent,14);return p;}
 function buildSnackBar(){
   if(snackObjs)return;snackObjs={grillItems:[],counterItems:[],tables:[]};
-  const gr=new THREE.Group();gr.position.set(GRILL.x,0,GRILL.z);scene.add(gr);
-  rbox(GRILL.w,0.9,GRILL.d,0xb9c0c8,0,0.45,0,gr,0.05);rbox(GRILL.w-0.1,0.04,GRILL.d-0.2,0x2b2f36,0,0.92,0,gr,0.02);
-  rbox(0.15,0.5,GRILL.d,0x9aa2ab,-0.4,1.15,0,gr,0.03);
-  for(let k=0;k<GRILL_CAP;k++){const b=makeBurger(gr);b.position.set(-0.05+(k%2)*0.2,0.94,-0.9+Math.floor(k/2)*0.6);snackObjs.grillItems.push(b);}
-  const sc=new THREE.Group();sc.position.set(SCOUNTER.x,0,SCOUNTER.z);scene.add(sc);
-  rbox(SCOUNTER.w,0.85,SCOUNTER.d,0xe9776a,0,0.425,0,sc,0.06);rbox(SCOUNTER.w+0.12,0.08,SCOUNTER.d+0.12,0xf6efe6,0,0.89,0,sc,0.04);
-  for(let k=0;k<COUNTER_CAP;k++){const b=makeBurger(sc);b.position.set(-0.15+(k%2)*0.3,0.93,-1.2+Math.floor(k/2)*0.8);snackObjs.counterItems.push(b);}
+  const STEEL=0xaab3c0,STEEL2=0xc3cad3;
+  // chapa (frente virada para o corredor do cozinheiro)
+  const gr=new THREE.Group();gr.position.set(GRILL.x,0,GRILL.z);gr.rotation.y=Math.PI/2;scene.add(gr);
+  for(const x of[-1.1,1.1])for(const z of[-0.35,0.35])cyl(0.04,0.04,0.08,0x7d8590,x,0.04,z,gr,8);
+  rbox(2.4,0.78,0.85,STEEL,0,0.47,0,gr,0.05);
+  for(const x of[-0.55,0.55]){rbox(1.0,0.42,0.03,STEEL2,x,0.36,0.43,gr,0.03);box(0.4,0.03,0.04,CHROME,x,0.52,0.46,gr);}
+  for(const x of[-0.9,0,0.9]){const k=cyl(0.045,0.045,0.04,0x5b636e,x,0.74,0.44,gr,12);k.rotation.x=Math.PI/2;}
+  rbox(2.46,0.06,0.9,STEEL2,0,0.88,0,gr,0.02);
+  rbox(2.2,0.05,0.72,0x2b2f36,0,0.92,0.02,gr,0.02);
+  for(const [w,d,x,z] of[[2.24,0.04,0,-0.36],[2.24,0.04,0,0.39],[0.04,0.76,-1.11,0.02],[0.04,0.76,1.11,0.02]])box(w,0.07,d,0x24282e,x,0.96,z,gr);
+  for(const x of[-1.15,1.15])box(0.06,1.0,0.06,STEEL,x,1.4,-0.38,gr);
+  rbox(2.3,0.28,0.7,STEEL2,0,1.95,-0.05,gr,0.06);rbox(2.0,0.04,0.55,0x8b939e,0,1.8,0,gr,0.02);
+  const spat=new THREE.Group();spat.position.set(1.25,0.7,0.2);gr.add(spat);box(0.02,0.2,0.04,0x7a4a2e,0,0.1,0,spat);box(0.02,0.12,0.1,CHROME,0,-0.06,0,spat);
+  for(let k=0;k<GRILL_CAP;k++){const pt=makePatty(gr);pt.position.set(-0.75+(k%3)*0.75,0.96,-0.15+Math.floor(k/3)*0.32);snackObjs.grillItems.push(pt);}
+  // balcão de atendimento (frente para os clientes)
+  const sc=new THREE.Group();sc.position.set(SCOUNTER.x,0,SCOUNTER.z);sc.rotation.y=Math.PI/2;scene.add(sc);
+  rbox(3.0,0.1,0.86,0xb9c0c8,0,0.05,0,sc,0.03);rbox(2.95,0.74,0.8,0xe9665a,0,0.47,0,sc,0.05);rbox(3.1,0.08,0.96,0xf3ead6,0,0.88,0,sc,0.03);
+  // vitrine de vidro
+  const glassM=new THREE.MeshLambertMaterial({color:0xdff2fb,transparent:true,opacity:0.28,depthWrite:false});
+  const gx=-0.55,gw=1.6,gd=0.62,gh=0.42,gy=0.92;
+  const gl=new THREE.Mesh(new THREE.BoxGeometry(gw,gh,gd),glassM);gl.position.set(gx,gy+gh/2,0);sc.add(gl);
+  rbox(gw+0.04,0.03,gd+0.04,CHROME,gx,gy+0.015,0,sc,0.01);
+  for(const ex of[-gw/2,gw/2])for(const ez of[-gd/2,gd/2])box(0.03,gh,0.03,CHROME,gx+ex,gy+gh/2,ez,sc);
+  for(const ez of[-gd/2,gd/2])box(gw,0.03,0.03,CHROME,gx,gy+gh,ez,sc);
+  for(let k=0;k<COUNTER_CAP;k++){const b=makeBurger(sc);b.position.set(gx-0.6+(k%4)*0.4,gy+0.03,-0.14+Math.floor(k/4)*0.28);snackObjs.counterItems.push(b);}
+  // cardápio, porta-guardanapo e molhos
+  cyl(0.02,0.02,0.4,CHROME,0.5,1.12,0.1,sc,8);cyl(0.07,0.07,0.02,CHROME,0.5,0.93,0.1,sc,12);
+  const menu=new THREE.Mesh(new THREE.PlaneGeometry(0.42,0.34),new THREE.MeshLambertMaterial({map:canvasTex(128,104,x=>{x.fillStyle='#f6efe6';x.fillRect(0,0,128,104);x.strokeStyle='#c98a6a';x.lineWidth=6;x.strokeRect(3,3,122,98);
+    x.fillStyle='#e9665a';x.fillRect(14,12,100,12);x.fillStyle='#e0a050';x.beginPath();x.arc(36,52,15,Math.PI,0);x.fill();x.fillStyle='#5a3a22';x.fillRect(21,54,30,6);x.fillStyle='#e0a050';x.fillRect(21,61,30,6);
+    x.fillStyle='#c98a6a';for(let i=0;i<4;i++)x.fillRect(62,40+i*12,48,5);x.fillStyle='#7a4a2e';x.beginPath();x.arc(36,86,9,0,7);x.fill();},1,1)}));
+  menu.position.set(0.5,1.42,0.12);sc.add(menu);rbox(0.46,0.38,0.03,0xd9b8a6,0.5,1.42,0.1,sc,0.02);
+  rbox(0.16,0.14,0.12,CHROME,0.95,0.99,0.05,sc,0.02);box(0.1,0.06,0.02,0xffffff,0.95,1.08,0.05,sc);
+  for(const [x,c,h] of[[1.22,0xd8323a,0.2],[1.36,0xf2c43a,0.15]]){cyl(0.04,0.045,h,c,x,0.92+h/2,0.05,sc,12);const tip=new THREE.Mesh(new THREE.ConeGeometry(0.025,0.06,8),mat(0xf2c43a));tip.position.set(x,0.95+h,0.05);sc.add(tip);}
+  // mesas e cadeiras
   TABLES.forEach((t,k)=>{const g=new THREE.Group();g.position.copy(t);scene.add(g);
-    cyl(0.5,0.5,0.06,0xf6efe6,0,0.74,0,g,20);cyl(0.06,0.06,0.72,0x8b919c,0,0.36,0,g,8);cyl(0.28,0.3,0.04,0x8b919c,0,0.02,0,g,14);
-    for(const sx of[-0.8,0.8]){rbox(0.42,0.06,0.42,0xe9776a,sx,0.45,0,g,0.03);for(const lx of[-0.16,0.16])for(const lz of[-0.16,0.16])cyl(0.025,0.025,0.43,0x8b919c,sx+lx,0.22,lz,g,6);}
+    cyl(0.52,0.52,0.06,0xf7f8fa,0,0.75,0,g,28);cyl(0.5,0.5,0.03,0xdfe3e8,0,0.715,0,g,28);
+    cyl(0.05,0.07,0.7,CHROME,0,0.36,0,g,10);cyl(0.3,0.33,0.04,CHROME,0,0.02,0,g,20);
+    for(const sx of[-0.82,0.82]){const ch=new THREE.Group();ch.position.set(sx,0,0);ch.rotation.y=sx<0?Math.PI/2:-Math.PI/2;g.add(ch);
+      cyl(0.21,0.21,0.08,0xe9665a,0,0.48,0,ch,18);
+      const back=rbox(0.38,0.3,0.06,0xe9665a,0,0.85,-0.2,ch,0.05);back.rotation.x=-0.12;
+      for(const lx of[-0.14,0.14]){for(const lz of[-0.14,0.14])cyl(0.016,0.016,0.44,CHROME,lx,0.22,lz,ch,6);cyl(0.014,0.014,0.42,CHROME,lx,0.66,-0.19,ch,6);}}
     const dirtFX=makeTableDirt(g),trash=dirtFX.g;
     const L=addLabel('box',()=>t.clone().setY(1.3));snackObjs.tables[k]={g,trash,dirtFX,L,busy:null,clean:0};});
   addStoreLabel(V(-5.6,-11.6),'🍔 Lanchonete');
   updateSnack();
 }
+// vapor saindo da chapa
+const steam=[];const steamGeo=new THREE.SphereGeometry(0.07,8,6);
+function updateSteam(dt){if(!snackObjs)return;
+  snackObjs.grillItems.forEach(p=>{if(!p.visible||Math.random()>dt*2.2||steam.length>40)return;const w=new THREE.Vector3();p.getWorldPosition(w);
+    const m=new THREE.Mesh(steamGeo,new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:0.5,depthWrite:false}));m.position.copy(w).add(new THREE.Vector3(0,0.05,0));scene.add(m);steam.push({m,life:1.2});});
+  for(let i=steam.length-1;i>=0;i--){const st=steam[i];st.life-=dt;st.m.position.y+=dt*0.5;st.m.scale.setScalar(1+(1.2-st.life));st.m.material.opacity=Math.max(0,st.life*0.4);
+    if(st.life<=0){scene.remove(st.m);st.m.material.dispose();steam.splice(i,1);}}}
 function updateSnack(){if(!snackObjs)return;
   snackObjs.grillItems.forEach((b,k)=>b.visible=k<S.grill);snackObjs.counterItems.forEach((b,k)=>b.visible=k<S.counter);
   snackObjs.tables.forEach((t,k)=>{t.trash.visible=S.tables[k];setLabel(t.L,S.tables[k]?'<span class="empty">🧹 mesa suja</span>':'');});}
@@ -1120,7 +1204,7 @@ const moneyEl=document.getElementById('money'),boostEl=document.getElementById('
 let saveT=0,last=performance.now();
 function loop(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
-  updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStaff(dt);updateGrill(dt);updateCleanFX(dt);
+  updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStaff(dt);updateGrill(dt);updateCleanFX(dt);updateSteam(dt);
   updateCars(dt);updateWalkers(dt);updateFall(dt);updatePeople(dt);
   eastRow.position.x+=(eastX()-eastRow.position.x)*Math.min(1,dt*1.5);
   sun.position.set(player.pos.x+8,16,player.pos.z+10);sun.target.position.set(player.pos.x+2,0,player.pos.z);
