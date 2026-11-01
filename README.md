@@ -23,4 +23,8 @@ O vídeo de verdade entra quando o jogo for publicado em um portal (CrazyGames, 
 
 ## Tecnologia
 
-Um único arquivo HTML com Three.js carregado de CDN. O progresso fica salvo no navegador (localStorage).
+Página HTML com Three.js carregado de CDN e os personagens em `models/` (arquivos .glb). O progresso fica salvo no navegador (localStorage).
+
+## Créditos
+
+Personagens: **Ultimate Animated Character Pack**, de [Quaternius](https://quaternius.com), licença CC0 (domínio público, uso comercial liberado). Modelos usados em `models/`: Worker, Casual Character, Business Man e Adventurer.

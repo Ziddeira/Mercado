@@ -51,6 +51,7 @@ button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
+<div id="loading" style="position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#2b3345;color:#fff;font-weight:800;font-size:18px">Carregando…</div>
 <div id="labels"></div>
 <div id="hud">
   <div>
@@ -68,9 +69,11 @@ button:disabled{opacity:.5;cursor:default}
 <div id="modal" class="hidden"><div class="card"><div class="mhead"><b>Melhorias</b><button id="closeM">✕</button></div><div id="mlist"></div></div></div>
 <div id="ad" class="hidden"><div class="adbox"><small>ANÚNCIO (SIMULAÇÃO)</small><b>Aqui entra o vídeo da rede de anúncios</b><div id="adCount">3</div></div></div>
 
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // ---------- Dados ----------
 const PRODUCTS = [
@@ -177,17 +180,38 @@ function floatText(pos,text,color){const p=pos.clone();p.y=1.8;const L=addLabel(
 const toastEl=document.getElementById('toast');let toastT=0;
 function toast(t){toastEl.textContent=t;toastEl.style.opacity=1;toastT=2.2;}
 
-// ---------- Pessoas ----------
-function makePerson(color,hat){
+// ---------- Pessoas (modelos Quaternius, CC0) ----------
+const loader=new GLTFLoader();
+const MODELS={};
+await Promise.all(['worker','casual','business','adventurer'].map(async n=>{
+  const g=await loader.loadAsync(`models/${n}.glb`);
+  g.scene.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(g.scene,true);
+  MODELS[n]={scene:g.scene,anims:g.animations,scale:1.85/(b.max.y-b.min.y)};
+}));
+const people=new Set();
+// tints: {nomeDoMaterial: cor}
+function makePerson(kind,tints={},moveAnim='Walk'){
+  const M=MODELS[kind];
   const g=new THREE.Group();
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.3,0.8,12),mat(color));body.position.y=0.5;body.castShadow=true;g.add(body);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,14,10),mat(0xf1c9a5));head.position.y=1.12;head.castShadow=true;g.add(head);
-  for(const s of[-1,1]){const e=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,0.04),mat(0x222222));e.position.set(s*0.08,1.15,0.2);g.add(e);}
-  if(hat){const c=new THREE.Mesh(new THREE.CylinderGeometry(0.23,0.23,0.12,14),mat(hat));c.position.y=1.3;g.add(c);const v=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.03,0.18),mat(hat));v.position.set(0,1.25,0.25);g.add(v);}
-  scene.add(g);return g;
+  const m=SkeletonUtils.clone(M.scene);m.scale.setScalar(M.scale);
+  m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;
+    const mats=Array.isArray(o.material)?o.material:[o.material];
+    const nm=mats.map(mt=>tints[mt.name]!=null?mt.clone():mt);
+    nm.forEach(mt=>{if(tints[mt.name]!=null){mt.color=new THREE.Color(tints[mt.name]);}});
+    o.material=Array.isArray(o.material)?nm:nm[0];}});
+  g.add(m);
+  const mixer=new THREE.AnimationMixer(m),actions={};
+  for(const c of M.anims)actions[c.name]=mixer.clipAction(c);
+  g.userData={mixer,actions,cur:null,moving:false,moveAnim};
+  playAnim(g,'Idle');
+  scene.add(g);people.add(g);return g;
 }
+function playAnim(g,name){const a=g.userData;if(a.cur===name||!a.actions[name])return;
+  const next=a.actions[name];next.reset().fadeIn(0.15).play();if(a.cur)a.actions[a.cur].fadeOut(0.15);a.cur=name;}
+function removePerson(g){scene.remove(g);people.delete(g);g.userData.mixer.stopAllAction();}
+function updatePeople(dt){for(const g of people){playAnim(g,g.userData.moving?g.userData.moveAnim:'Idle');g.userData.mixer.update(dt);}}
 const itemGeo=new THREE.BoxGeometry(0.32,0.2,0.28);
-function makeStack(g,n){const st=new THREE.Group();st.position.set(0,0.78,0.42);g.add(st);const arr=[];for(let k=0;k<n;k++){const m=new THREE.Mesh(itemGeo,mat(0xffffff));m.position.y=k*0.21;m.visible=false;m.castShadow=true;st.add(m);arr.push(m);}return arr;}
+function makeStack(g,n){const st=new THREE.Group();st.position.set(0,0.95,0.42);g.add(st);const arr=[];for(let k=0;k<n;k++){const m=new THREE.Mesh(itemGeo,mat(0xffffff));m.position.y=k*0.21;m.visible=false;m.castShadow=true;st.add(m);arr.push(m);}return arr;}
 function showStack(arr,n,type){arr.forEach((m,k)=>{m.visible=k<n;if(type>=0)m.material=mat(PRODUCTS[type].color);});}
 function step(o,target,speed,dt){
   const dx=target.x-o.pos.x,dz=target.z-o.pos.z,d=Math.hypot(dx,dz);
@@ -196,7 +220,7 @@ function step(o,target,speed,dt){
   o.mesh.rotation.y=Math.atan2(dx,dz);o.walkT=(o.walkT||0)+dt*10;
   return s>=d-1e-4;
 }
-function syncMesh(o){o.mesh.position.set(o.pos.x,Math.abs(Math.sin(o.walkT||0))*0.06,o.pos.z);}
+function syncMesh(o){const p=o.mesh.position;o.mesh.userData.moving=Math.hypot(p.x-o.pos.x,p.z-o.pos.z)>0.003;p.set(o.pos.x,0,o.pos.z);}
 // rota que contorna a fileira de prateleiras pelos corredores
 function route(from,to){
   const band=z=>z<-0.8?-1:1;
@@ -263,8 +287,8 @@ function unlockProduct(i){S.unlocked[i]=true;S.stock[i]=0;buildShelf(i);buildPal
 
 // ---------- Funcionários ----------
 let cashierNpc=null,stocker=null;
-function spawnCashier(){const mesh=makePerson(0xff7f50,0xffffff);cashierNpc={mesh,pos:CASHIER_SPOT.clone()};mesh.position.copy(CASHIER_SPOT);mesh.rotation.y=0;}
-function spawnStocker(){const mesh=makePerson(0x20b2aa,0xffffff);stocker={mesh,pos:V(3,-2.6),path:[],state:'idle',type:-1,carry:0,t:0,stack:makeStack(mesh,6)};}
+function spawnCashier(){const mesh=makePerson('casual',{LightBlue:0xff7f50});cashierNpc={mesh,pos:CASHIER_SPOT.clone()};mesh.position.copy(CASHIER_SPOT);mesh.rotation.y=0;}
+function spawnStocker(){const mesh=makePerson('worker',{Worker_Vest:0x20b2aa});stocker={mesh,pos:V(3,-2.6),path:[],state:'idle',type:-1,carry:0,t:0,stack:makeStack(mesh,6)};}
 
 // ---------- Áreas de compra ----------
 const PADS=[
@@ -305,7 +329,7 @@ function updatePads(dt){
 }
 
 // ---------- Jogador ----------
-const player={mesh:makePerson(0x2d6cdf,0xffcc33),pos:V(0,2),carry:0,type:-1,actT:0};
+const player={mesh:makePerson('worker',{Worker_Vest:0x2d6cdf},'Run'),pos:V(0,2),carry:0,type:-1,actT:0};
 player.stack=makeStack(player.mesh,12);
 const carryCap=()=>CARRY_CAP[S.carryLvl];
 function nearBox(p,cx,cz,hw,hd,r){const dx=Math.max(Math.abs(p.x-cx)-hw,0),dz=Math.max(Math.abs(p.z-cz)-hd,0);return Math.hypot(dx,dz)<r;}
@@ -339,7 +363,8 @@ function spawnCustomer(){
   const unl=unlockedList();
   const n=1+Math.floor(Math.random()*Math.min(3,unl.length));
   const wants=unl.sort(()=>Math.random()-0.5).slice(0,n);
-  const c={mesh:makePerson(CUST_COLORS[Math.floor(Math.random()*CUST_COLORS.length)]),pos:V(-0.5+Math.random(),9.5),path:[V(0,4.2)],wants,items:[],state:'walk',t:0,angry:false,off:(Math.random()-0.5)*1.6};
+  const col=CUST_COLORS[Math.floor(Math.random()*CUST_COLORS.length)],kind=['casual','business','adventurer'][Math.floor(Math.random()*3)];
+  const c={mesh:makePerson(kind,{LightBlue:col,Suit:col,Green:col}),pos:V(-0.5+Math.random(),9.5),path:[V(0,4.2)],wants,items:[],state:'walk',t:0,angry:false,off:(Math.random()-0.5)*1.6};
   c.bubble=addLabel('bubble',()=>c.pos.clone().setY(1.75));
   planNext(c);customers.push(c);
 }
@@ -380,7 +405,7 @@ function updateCustomers(dt){
   }
   for(let k=customers.length-1;k>=0;k--){
     const c=customers[k];
-    if(c.state==='gone'){scene.remove(c.mesh);removeLabel(c.bubble);customers.splice(k,1);continue;}
+    if(c.state==='gone'){removePerson(c.mesh);removeLabel(c.bubble);customers.splice(k,1);continue;}
     syncMesh(c);
   }
 }
@@ -503,7 +528,7 @@ function updateHint(){
 const camTarget=new THREE.Vector3();
 function updateCamera(dt,snap){
   const vf=THREE.MathUtils.degToRad(camera.fov)/2,hf=Math.atan(Math.tan(vf)*camera.aspect);
-  const d=Math.max(5.2/Math.tan(hf),5.5/Math.tan(vf));
+  const d=Math.max(4.6/Math.tan(hf),5/Math.tan(vf));
   const dy=d*0.86,dz=d*0.5;
   camTarget.set(player.pos.x,dy,player.pos.z+dz);
   if(snap)camera.position.copy(camTarget);else camera.position.lerp(camTarget,Math.min(1,dt*5));
@@ -523,7 +548,7 @@ const moneyEl=document.getElementById('money'),boostEl=document.getElementById('
 let saveT=0,last=performance.now();
 function loop(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
-  updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStocker(dt);
+  updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStocker(dt);updatePeople(dt);
   for(let k=floats.length-1;k>=0;k--){const f=floats[k];f.life-=dt;f.p.y+=dt*1.3;f.L.el.style.opacity=Math.min(1,f.life*2);if(f.life<=0){removeLabel(f.L);floats.splice(k,1);}}
   if(toastT>0){toastT-=dt;if(toastT<=0)toastEl.style.opacity=0;}
   updateCamera(dt);renderer.render(scene,camera);updateLabels();
@@ -536,6 +561,7 @@ function loop(now){
   saveT+=dt;if(saveT>3){saveT=0;save();}
   requestAnimationFrame(loop);
 }
+document.getElementById('loading').remove();
 requestAnimationFrame(loop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
 window.__game={S,player,customers,queue,get stocker(){return stocker}};
