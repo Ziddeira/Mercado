@@ -1,0 +1,20 @@
+{
+  "name": "supermkt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SuperMKT: Supermercado Tycoon",
+  "type": "module",
+  "scripts": {
+    "build:www": "node scripts/build-www.mjs",
+    "android:sync": "npm run build:www && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "three": "0.160.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.0"
+  }
+}

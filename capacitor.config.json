@@ -1,0 +1,8 @@
+{
+  "appId": "com.ziddeira.supermkt",
+  "appName": "SuperMKT",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#2b3345"
+  }
+}

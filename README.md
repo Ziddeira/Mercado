@@ -1,4 +1,4 @@
-# Mercado Tycoon (protótipo)
+# SuperMKT: Supermercado Tycoon
 
 Jogo mobile de gerenciar um supermercado, em 3D com câmera de cima. O jogador repõe as prateleiras, atende no caixa, desbloqueia produtos e marcas, amplia a loja e contrata funcionários. A monetização planejada é por anúncios.
 
@@ -50,3 +50,11 @@ Página HTML com Three.js carregado de CDN e os personagens em `models/` (arquiv
 - Cidade: **Ultimate Nature Pack**, **Buildings Pack**, **Textured Building Pack** e **Realistic Car Pack**, de Quaternius (CC0). Em `models/env/`, comprimidos com meshopt.
 - Ícones e ícone do app (`assets/`): gerados por IA para o projeto.
 - Prateleiras, pallets, balcão, produtos e piso: modelados em código a partir das imagens de referência.
+
+## App Android
+
+O app usa o [Capacitor](https://capacitorjs.com) (identificador `com.ziddeira.supermkt`).
+
+- A cada envio para a `main`, o GitHub Actions monta o **APK de teste** e publica na página **Releases** (versão "teste"), arquivo `SuperMKT-teste.apk`.
+- `npm run build:www` monta a pasta `www/` com o three.js local, para o jogo funcionar offline dentro do app.
+- Ícone e tela de abertura saem de `resources/`.

@@ -1,0 +1,62 @@
+name: APK de teste (Android)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Montar o jogo (www)
+        run: npm run build:www
+
+      - name: Gerar ícones e tela de abertura
+        run: npx @capacitor/assets generate --android --assetPath resources --iconBackgroundColor '#e9eef5' --splashBackgroundColor '#2b3345' --splashBackgroundColorDark '#2b3345'
+
+      - name: Sincronizar com o projeto Android
+        run: npx cap sync android
+
+      - name: Compilar APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Renomear APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk SuperMKT-teste.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SuperMKT-teste
+          path: SuperMKT-teste.apk
+
+      - name: Publicar na página de Releases (versão de teste)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: teste
+          name: SuperMKT — versão de teste
+          prerelease: true
+          body: |
+            APK de teste gerado automaticamente a partir do commit ${{ github.sha }}.
+            Para instalar: baixe o arquivo SuperMKT-teste.apk no celular Android e abra. Se o Android pedir, permita instalar apps desta fonte.
+          files: SuperMKT-teste.apk
