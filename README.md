@@ -31,6 +31,16 @@ Abra o jogo com `#teste` no fim do endereço (ex.: `.../#teste` ou `.../#teste-i
 
 Zoom: botões **+ / −**, pinça com dois dedos ou roda do mouse.
 
+## Rede de lojas
+
+Quando a loja fica completa, o **mapa da cidade** (🗺️ Cidade) libera a próxima filial: **Praia** (sorveteria), **Centro** (açougue) e **Shopping** (cafeteria). Cada filial tem preços maiores, decoração e música próprias, e dá **+25% em todas as vendas** da rede. O dinheiro é compartilhado; as filiais com operadores e estoquistas continuam vendendo sozinhas.
+
+- **Lucro offline:** ao voltar, o jogo mostra quanto as lojas renderam (até 8h, metade do ritmo) e oferece dobrar com um anúncio.
+- **Missões do dia** (🎯): três por dia, com prêmio em dinheiro.
+- **Popularidade** (⭐): cai com prateleira vazia, sujeira e cliente irritado; sobe com cliente bem atendido. Quanto maior, mais clientes entram.
+- **Eventos:** Natal (1–26/dez), Black Friday (20–30/nov), Halloween (24–31/out) e Páscoa (semana da Páscoa), com decoração, música e bônus. Teste com `#natal`, `#blackfriday`, `#halloween`, `#pascoa`.
+- **Música:** trilha original gerada no próprio jogo, que muda com a filial (pop, bossa na praia, forró no açougue, lounge no shopping), a estação e os eventos. Botão 🔊 liga e desliga.
+
 ## Anúncios
 
 Por enquanto os anúncios são simulados (uma tela de 3 segundos) em dois lugares:
