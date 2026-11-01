@@ -16,6 +16,17 @@ Abra o `index.html` no navegador (celular ou PC).
 
 As árvores e o chão mudam com a estação real, pelo calendário dos EUA (primavera em 20/mar, verão em 21/jun, outono em 22/set, inverno em 21/dez). No inverno cai neve e no outono caem folhas. Para testar uma estação, abra o jogo com `#primavera`, `#verao`, `#outono` ou `#inverno` no fim do endereço.
 
+## Evolução da loja
+
+1. Água → Salgadinhos → Refrigerante; contratar operador(a) do caixa 1 e o primeiro estoquista.
+2. Frutas, Laticínios e Limpeza; abrir o caixa 2 e contratar operador(a); segundo estoquista.
+3. **Ampliar a loja** para o lado: Pães, Congelados, Higiene e Café; caixas 3 e 4 com operadores; terceiro estoquista.
+4. **Ampliar para os fundos**: o estoque vai para o fundo e abre espaço para:
+   - **Banheiros**: os clientes usam, gastam papel e às vezes sujam. Sem papel ou sujo, o cliente vai embora sem pagar. Pegue papel no pallet branco do estoque e fique perto da sujeira para limpar. A **faxineira** faz as duas coisas sozinha.
+   - **Lanchonete**: a chapa prepara os lanches; leve-os ao balcão vermelho. Os clientes compram, comem nas mesas e deixam sujeira. **Atendente** leva os lanches ao balcão; **ajudante de mesas** limpa.
+
+Zoom: botões **+ / −**, pinça com dois dedos ou roda do mouse.
+
 ## Anúncios
 
 Por enquanto os anúncios são simulados (uma tela de 3 segundos) em dois lugares:
