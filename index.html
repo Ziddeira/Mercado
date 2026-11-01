@@ -35,7 +35,7 @@ button:disabled{opacity:.5;cursor:default}
 #hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(20,24,34,.85);color:#fff;padding:9px 14px;border-radius:12px;font-size:14px;font-weight:700;z-index:5;pointer-events:none;text-align:center;max-width:88vw}
 #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#3ddc84;color:#102;padding:10px 16px;border-radius:12px;font-weight:800;z-index:6;pointer-events:none;transition:opacity .3s}
 #joyBase,#joyKnob{position:fixed;border-radius:50%;pointer-events:none;z-index:4;transform:translate(-50%,-50%)}
-#joyBase{width:110px;height:110px;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.35)}
+#joyBase{width:130px;height:130px;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.35)}
 #joyKnob{width:50px;height:50px;background:rgba(255,255,255,.6)}
 #modal,#ad{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10;display:flex;align-items:center;justify-content:center}
 .card{background:#1f2533;color:#fff;border-radius:16px;width:min(420px,92vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.5)}
@@ -115,7 +115,7 @@ const PRODUCTS = [
 ];
 const TP=100,SNACK=101; // tipos especiais carregados: papel higiênico e lanche
 const TP_COST=1,SNACK_COST=2,SNACK_PRICE=9,TP_CAP=4,COUNTER_CAP=8,GRILL_CAP=6;
-const BRAND_PRICE=[1,1.5,2.2], BRAND_COST=[1,1.3,1.7];
+const BRAND_PRICE=[1,1.8,3.0], BRAND_COST=[1,1.25,1.5];
 const SHELF_CAP=[8,12,16];
 const CARRY_CAP=[4,6,8,10,12], CARRY_COST=[40,100,220,450];
 const SPEED=[1,1.15,1.3,1.45], SPEED_COST=[60,150,350];
@@ -985,22 +985,34 @@ const keys={};addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);addE
 const joy={active:false,ox:0,oy:0,x:0,y:0,id:null};
 const jb=document.getElementById('joyBase'),jk=document.getElementById('joyKnob');
 const cv=renderer.domElement;
-const touches=new Map();let pinchD=0,pinchZ=1;
-cv.addEventListener('pointerdown',e=>{touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(touches.size===2){const [a,b]=[...touches.values()];pinchD=Math.hypot(a.x-b.x,a.y-b.y);pinchZ=zoom;joy.active=false;joy.x=joy.y=0;jb.classList.add('hidden');jk.classList.add('hidden');}},true);
-cv.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(touches.size===2&&pinchD>0){const [a,b]=[...touches.values()];setZoom(pinchZ*pinchD/Math.max(20,Math.hypot(a.x-b.x,a.y-b.y)));}},true);
-const endTouch=e=>{touches.delete(e.pointerId);if(touches.size<2)pinchD=0;};
-cv.addEventListener('pointerup',endTouch,true);cv.addEventListener('pointercancel',endTouch,true);
+// Controles de toque: joystick que acompanha o dedo + pinça para zoom (só com dois dedos de propósito)
+const touches=new Map();let pinch=null;const JR=60;
+function hideJoy(){joy.active=false;joy.id=null;joy.x=joy.y=0;jb.classList.add('hidden');jk.classList.add('hidden');}
+function drawJoy(){jb.style.left=joy.ox+'px';jb.style.top=joy.oy+'px';jk.style.left=joy.ox+joy.x*JR+'px';jk.style.top=joy.oy+joy.y*JR+'px';}
+cv.addEventListener('pointerdown',e=>{
+  if(e.isPrimary)touches.clear();                 // primeiro dedo de um gesto novo: descarta toques "presos"
+  touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(customizing)return;
+  if(touches.size===2){const [p1,p2]=[...touches.values()];const d=Math.hypot(p1.x-p2.x,p1.y-p2.y);
+    hideJoy();if(d>30)pinch={d0:d,z0:zoom,on:false};return;}
+  if(touches.size===1){joy.active=true;joy.id=e.pointerId;joy.ox=e.clientX;joy.oy=e.clientY;joy.x=joy.y=0;drawJoy();jb.classList.remove('hidden');jk.classList.remove('hidden');}
+});
+addEventListener('pointermove',e=>{
+  if(!touches.has(e.pointerId))return;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&touches.size===2){const [p1,p2]=[...touches.values()];const r=Math.hypot(p1.x-p2.x,p1.y-p2.y)/pinch.d0;
+    if(!pinch.on&&Math.abs(r-1)>0.12)pinch.on=true;  // só começa o zoom depois de um movimento claro de pinça
+    if(pinch.on)setZoom(pinch.z0/r);return;}
+  if(joy.active&&e.pointerId===joy.id){let dx=e.clientX-joy.ox,dy=e.clientY-joy.oy;const d=Math.hypot(dx,dy);
+    if(d>JR){joy.ox+=dx/d*(d-JR);joy.oy+=dy/d*(d-JR);dx=e.clientX-joy.ox;dy=e.clientY-joy.oy;} // a base acompanha o dedo
+    joy.x=dx/JR;joy.y=dy/JR;drawJoy();}
+});
+const endTouch=e=>{touches.delete(e.pointerId);if(touches.size<2)pinch=null;if(e.pointerId===joy.id)hideJoy();};
+addEventListener('pointerup',endTouch);addEventListener('pointercancel',endTouch);
+addEventListener('blur',()=>{touches.clear();pinch=null;hideJoy();});
+document.addEventListener('visibilitychange',()=>{touches.clear();pinch=null;hideJoy();});
 cv.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*Math.exp(e.deltaY*0.0012));},{passive:false});
 document.getElementById('zIn').onclick=()=>setZoom(zoom/1.35);
 document.getElementById('zOut').onclick=()=>setZoom(zoom*1.35);
-cv.addEventListener('pointerdown',e=>{if(customizing||touches.size>1)return;joy.active=true;joy.id=e.pointerId;joy.ox=e.clientX;joy.oy=e.clientY;joy.x=joy.y=0;cv.setPointerCapture(e.pointerId);
-  jb.style.left=jk.style.left=e.clientX+'px';jb.style.top=jk.style.top=e.clientY+'px';jb.classList.remove('hidden');jk.classList.remove('hidden');});
-cv.addEventListener('pointermove',e=>{if(!joy.active||e.pointerId!==joy.id||touches.size>1)return;let dx=e.clientX-joy.ox,dy=e.clientY-joy.oy;const d=Math.hypot(dx,dy),R=50;if(d>R){dx=dx/d*R;dy=dy/d*R;}
-  joy.x=dx/R;joy.y=dy/R;jk.style.left=joy.ox+dx+'px';jk.style.top=joy.oy+dy+'px';});
-const endJoy=e=>{if(e.pointerId!==joy.id)return;joy.active=false;joy.x=joy.y=0;jb.classList.add('hidden');jk.classList.add('hidden');};
-cv.addEventListener('pointerup',endJoy);cv.addEventListener('pointercancel',endJoy);
 let customizing=false;
 function updatePlayer(dt){
   if(customizing){player.mesh.rotation.y=0;syncMesh(player);return;}
@@ -1050,7 +1062,8 @@ function renderUpgrades(){
   for(const i of unlockedList()){
     const P=PRODUCTS[i],bl=S.brand[i];
     if(bl<2){const c=Math.round(P.price*(bl?60:20)+(bl?120:40));const np=Math.round(P.price*BRAND_PRICE[bl+1]);
-      row(`${P.name}: marca ${P.brands[bl+1]}`,`Hoje: ${P.brands[bl]} · preço $${price(i)} → $${np}`,'$'+c,'',buyable(c,()=>{S.brand[i]++;updateShelf(i);updatePallet(i);}));}
+      const nc=Math.round(P.cost*BRAND_COST[bl+1]);
+      row(`${P.name}: marca ${P.brands[bl+1]}`,`Lucro por item $${price(i)-cost(i)} → $${np-nc} · preço $${price(i)} → $${np}`,'$'+c,'',buyable(c,()=>{S.brand[i]++;updateShelf(i);updatePallet(i);}));}
     else row(`${P.name}: ${P.brands[2]}`,'Marca premium (máximo)','MÁX','max',null);
     const sl=S.shelfLvl[i];
     if(sl<2){const c=(sl?150:60)+i*(sl?80:40);row(`Prateleira de ${P.name}`,`Capacidade ${cap(i)} → ${SHELF_CAP[sl+1]}`,'$'+c,'',buyable(c,()=>{S.shelfLvl[i]++;updateShelf(i);}));}
