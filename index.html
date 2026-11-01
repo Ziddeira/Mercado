@@ -4,11 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Mercado Tycoon — protótipo</title>
+<link rel="icon" type="image/png" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <style>
 html,body{margin:0;height:100%;overflow:hidden;background:#2b3345;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
 canvas{display:block}
 .hidden{display:none!important}
 #hud{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:5;gap:8px}
+.ic{width:20px;height:20px;vertical-align:-5px;margin-right:4px}
+.lbl .ic{width:16px;height:16px;vertical-align:-3px;margin-right:2px}
+.row .ic{width:22px;height:22px;vertical-align:-6px;margin-right:6px}
 .pill{background:rgba(20,24,34,.85);color:#fff;border-radius:14px;padding:8px 14px;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 #money{font-size:22px;color:#7CFC7C}
 #lvl{font-size:12px;color:#cfd6e4;margin-top:4px;padding:5px 10px}
@@ -51,16 +56,16 @@ button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
-<div id="loading" style="position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#2b3345;color:#fff;font-weight:800;font-size:18px">Carregando…</div>
+<div id="loading" style="position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#2b3345;color:#fff;font-weight:800;font-size:18px;flex-direction:column;gap:14px"><img src="assets/icon-192.png" width="120" height="120" alt="">Carregando…</div>
 <div id="labels"></div>
 <div id="hud">
   <div>
-    <div class="pill"><span id="money">$0</span><span id="boost"></span></div>
+    <div class="pill"><img class="ic" src="assets/cash.png" alt=""><span id="money">$0</span><span id="boost"></span></div>
     <div class="pill" id="lvl">Loja nível 1</div>
   </div>
   <div id="right">
-    <button class="b-up" id="btnUp">⬆ Melhorias</button>
-    <button class="b-ad" id="btnAd">📺 Dinheiro 2x</button>
+    <button class="b-up" id="btnUp"><img class="ic" src="assets/upgrade.png" alt="">Melhorias</button>
+    <button class="b-ad" id="btnAd"><img class="ic" src="assets/ad.png" alt="">Dinheiro 2x</button>
   </div>
 </div>
 <div id="hint"></div>
@@ -74,6 +79,7 @@ button:disabled{opacity:.5;cursor:default}
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // ---------- Dados ----------
 const PRODUCTS = [
@@ -130,15 +136,22 @@ Object.assign(sun.shadow.camera,{left:-20,right:20,top:20,bottom:-20,far:60});
 scene.add(sun,sun.target);
 const matCache={};
 const mat=c=>matCache[c]||(matCache[c]=new THREE.MeshLambertMaterial({color:c}));
+const rgCache={};
+function rbox(w,h,d,c,x=0,y=0,z=0,parent=scene,r=0.04){const k=[w,h,d,r].join();const geo=rgCache[k]||(rgCache[k]=new RoundedBoxGeometry(w,h,d,2,Math.min(r,w*0.49,h*0.49,d*0.49)));
+  const m=new THREE.Mesh(geo,mat(c));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+function cyl(rt,rb,h,c,x=0,y=0,z=0,parent=scene,seg=12){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat(c));m.position.set(x,y,z);m.castShadow=true;parent.add(m);return m;}
 function box(w,h,d,c,x=0,y=0,z=0,parent=scene){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 
 // chão externo e calçada
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120),mat(0x6b8f5a));ground.rotation.x=-Math.PI/2;ground.position.y=-0.02;ground.receiveShadow=true;scene.add(ground);
 const walk=new THREE.Mesh(new THREE.PlaneGeometry(60,4),mat(0xb9b4a8));walk.rotation.x=-Math.PI/2;walk.position.set(2,-0.01,7.2);walk.receiveShadow=true;scene.add(walk);
 // textura do piso
-const ftc=document.createElement('canvas');ftc.width=ftc.height=128;const fx=ftc.getContext('2d');
-fx.fillStyle='#f2efe8';fx.fillRect(0,0,128,128);fx.fillStyle='#e2ddd2';fx.fillRect(0,0,64,64);fx.fillRect(64,64,64,64);
-const floorTex=new THREE.CanvasTexture(ftc);floorTex.wrapS=floorTex.wrapT=THREE.RepeatWrapping;floorTex.colorSpace=THREE.SRGBColorSpace;
+const ftc=document.createElement('canvas');ftc.width=ftc.height=256;const fx=ftc.getContext('2d');
+fx.fillStyle='#e7d4b4';fx.fillRect(0,0,256,256);
+function tile(x,y,c,hi){fx.fillStyle=c;fx.beginPath();fx.roundRect(x+5,y+5,118,118,12);fx.fill();
+  fx.strokeStyle=hi;fx.lineWidth=3;fx.beginPath();fx.roundRect(x+7,y+7,114,114,10);fx.stroke();}
+tile(0,0,'#ecce9f','#f2d9b0');tile(128,128,'#ecce9f','#f2d9b0');tile(128,0,'#f2e8cd','#f8f0dc');tile(0,128,'#f2e8cd','#f8f0dc');
+const floorTex=new THREE.CanvasTexture(ftc);floorTex.wrapS=floorTex.wrapT=THREE.RepeatWrapping;floorTex.colorSpace=THREE.SRGBColorSpace;floorTex.anisotropy=4;
 
 const bounds=()=>({minX:-8,maxX:S.expanded?13:4,minZ:-5,maxZ:5});
 let storeGroup=null;
@@ -183,10 +196,11 @@ function toast(t){toastEl.textContent=t;toastEl.style.opacity=1;toastT=2.2;}
 // ---------- Pessoas (modelos Quaternius, CC0) ----------
 const loader=new GLTFLoader();
 const MODELS={};
-await Promise.all(['worker','casual','business','adventurer'].map(async n=>{
+const CUSTOMER_KINDS=['casual_m','casual_f','casual2_m','casual3_m','casual3_f','oldclassy_f','suit_m'];
+await Promise.all(['worker_m','worker_f','casual2_f',...CUSTOMER_KINDS].map(async n=>{
   const g=await loader.loadAsync(`models/${n}.glb`);
   g.scene.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(g.scene,true);
-  MODELS[n]={scene:g.scene,anims:g.animations,scale:1.85/(b.max.y-b.min.y)};
+  MODELS[n]={scene:g.scene,anims:g.animations,scale:1.6/(b.max.y-b.min.y)};
 }));
 const people=new Set();
 // tints: {nomeDoMaterial: cor}
@@ -201,7 +215,7 @@ function makePerson(kind,tints={},moveAnim='Walk'){
     o.material=Array.isArray(o.material)?nm:nm[0];}});
   g.add(m);
   const mixer=new THREE.AnimationMixer(m),actions={};
-  for(const c of M.anims)actions[c.name]=mixer.clipAction(c);
+  for(const c of (M.anims.length?M.anims:MODELS.worker_m.anims))actions[c.name]=mixer.clipAction(c);
   g.userData={mixer,actions,cur:null,moving:false,moveAnim};
   playAnim(g,'Idle');
   scene.add(g);people.add(g);return g;
@@ -210,9 +224,9 @@ function playAnim(g,name){const a=g.userData;if(a.cur===name||!a.actions[name])r
   const next=a.actions[name];next.reset().fadeIn(0.15).play();if(a.cur)a.actions[a.cur].fadeOut(0.15);a.cur=name;}
 function removePerson(g){scene.remove(g);people.delete(g);g.userData.mixer.stopAllAction();}
 function updatePeople(dt){for(const g of people){playAnim(g,g.userData.moving?g.userData.moveAnim:'Idle');g.userData.mixer.update(dt);}}
-const itemGeo=new THREE.BoxGeometry(0.32,0.2,0.28);
-function makeStack(g,n){const st=new THREE.Group();st.position.set(0,0.95,0.42);g.add(st);const arr=[];for(let k=0;k<n;k++){const m=new THREE.Mesh(itemGeo,mat(0xffffff));m.position.y=k*0.21;m.visible=false;m.castShadow=true;st.add(m);arr.push(m);}return arr;}
-function showStack(arr,n,type){arr.forEach((m,k)=>{m.visible=k<n;if(type>=0)m.material=mat(PRODUCTS[type].color);});}
+function makeStack(g,n){const st=new THREE.Group();st.position.set(0,0.95,0.42);g.add(st);const arr=[];
+  for(let k=0;k<n;k++){const b=cardBox(0xffffff,0.34,0.2,0.3,st);b.position.y=k*0.205;b.visible=false;b.userData.body=b.children[0];arr.push(b);}return arr;}
+function showStack(arr,n,type){arr.forEach((b,k)=>{b.visible=k<n;if(type>=0)b.userData.body.material=mat(PRODUCTS[type].color);});}
 function step(o,target,speed,dt){
   const dx=target.x-o.pos.x,dz=target.z-o.pos.z,d=Math.hypot(dx,dz);
   if(d<0.02)return true;
@@ -249,24 +263,71 @@ function collide(p,r){
 }
 
 // ---------- Balcão ----------
-box(2.4,0.9,0.9,0x8a5a3c,COUNTER.x,0.45,COUNTER.z);
-box(2.5,0.08,1,0xd9c3a5,COUNTER.x,0.92,COUNTER.z);
-box(0.5,0.3,0.4,0x333a48,COUNTER.x-0.6,1.1,COUNTER.z-0.1);
+{
+  const g=new THREE.Group();g.position.set(COUNTER.x,0,COUNTER.z);scene.add(g);
+  const WOOD=0xdcaa6c,WOOD2=0xc89558,TOP=0xeef0f4;
+  rbox(2.3,0.08,0.78,0xb98a50,0,0.04,0,g,0.03);            // rodapé
+  rbox(2.3,0.76,0.8,WOOD,0,0.46,0,g,0.06);                 // corpo
+  for(const x of[-0.58,0,0.58])for(const z of[-0.41,0.41])box(0.03,0.62,0.01,WOOD2,x,0.46,z,g); // painéis
+  rbox(2.46,0.09,0.96,TOP,0,0.88,0,g,0.04);               // tampo
+  // esteira
+  rbox(0.95,0.05,0.62,WOOD,-0.55,0.95,0.05,g,0.02);
+  for(let k=0;k<5;k++){const r=cyl(0.04,0.04,0.56,0xf3ecd8,-0.9+k*0.17,0.99,0.05,g,10);r.rotation.x=Math.PI/2;}
+  // caixa registradora (virada para o operador, lado -z)
+  const reg=new THREE.Group();reg.position.set(0.45,0.93,-0.08);g.add(reg);
+  rbox(0.52,0.12,0.42,0x8b919c,0,0.06,0,reg,0.03);
+  rbox(0.46,0.18,0.36,0xf1ead2,0,0.21,0.02,reg,0.04);
+  const kp=rbox(0.3,0.03,0.2,0xf7f2e2,-0.05,0.31,-0.06,reg,0.01);kp.rotation.x=0.35;
+  const keyCols=[0xe05252,0xf2c84b,0x4bbf6b,0x9aa0aa];
+  for(let a=0;a<4;a++)for(let b=0;b<3;b++)box(0.045,0.02,0.04,a===0?keyCols[b]:0x9aa0aa,-0.15+a*0.07,0.335-b*0.02,-0.12+b*0.055,reg).rotation.x=0.35;
+  rbox(0.14,0.1,0.03,0x3a4150,0.12,0.36,0.1,reg,0.01);
+  cyl(0.015,0.015,0.18,0x8b919c,0.12,0.42,0.16,reg);
+  rbox(0.16,0.08,0.03,0x8b919c,0.12,0.53,0.16,reg,0.01);
+  // maquininha de cartão
+  rbox(0.13,0.05,0.22,0x5b80d8,0.95,0.95,-0.15,g,0.03);
+  rbox(0.09,0.01,0.07,0x2e3a55,0.95,0.98,-0.2,g,0.005);
+}
 function ring(p,c=0xffffff,r=0.75){const m=new THREE.Mesh(new THREE.RingGeometry(r-0.08,r,32),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.45}));m.rotation.x=-Math.PI/2;m.position.set(p.x,0.015,p.z);scene.add(m);return m;}
 ring(CASHIER_SPOT,0xffcc33);
 const cashLbl=addLabel('box',()=>V(CASHIER_SPOT.x,0).setY(0.2));setLabel(cashLbl,'Caixa');
 
 // ---------- Prateleiras e depósito ----------
 const shelves=[],pallets=[];
-const itemOnShelf=new THREE.BoxGeometry(0.24,0.3,0.24);
+// modelos dos produtos (um tipo por prateleira)
+const PROD_VARIANT=[
+  [0x8fcaf2],                       // água
+  [0xd8324a,0x46b04a],              // salgadinhos
+  [0xe03b3b,0x2f6fd6,0x3cae4a],     // refrigerante
+  [0xd8323a,0x7cc243,0xf28a1e],     // frutas
+  [0xffffff],                       // laticínios
+  [0x46b04a,0x3b8fe0,0xb55fd6],     // limpeza
+];
+function makeItem(type,k){
+  const g=new THREE.Group(),vs=PROD_VARIANT[type],c=vs[k%vs.length];
+  if(type===0){cyl(0.065,0.07,0.26,c,0,0.13,0,g);cyl(0.071,0.071,0.08,0x2f73c9,0,0.13,0,g);cyl(0.035,0.06,0.06,c,0,0.29,0,g);cyl(0.03,0.03,0.04,0x2f73c9,0,0.33,0,g);}
+  else if(type===1){rbox(0.21,0.27,0.08,c,0,0.14,0,g,0.035);rbox(0.13,0.08,0.085,0xf6d23a,0,0.16,0.002,g,0.03);}
+  else if(type===2){cyl(0.06,0.06,0.2,c,0,0.1,0,g,14);cyl(0.055,0.06,0.02,0xc9ced6,0,0.21,0,g,14);cyl(0.062,0.062,0.035,0xffffff,0,0.12,0,g,14);}
+  else if(type===3){const r=k%3===2?0.08:0.07;const f=new THREE.Mesh(new THREE.SphereGeometry(r,12,10),mat(c));f.position.y=r;f.castShadow=true;g.add(f);
+    if(k%3!==2){cyl(0.008,0.008,0.05,0x6b4a2b,0,r*2+0.01,0,g,5);box(0.04,0.008,0.02,0x4caf50,0.02,r*2+0.02,0,g);}}
+  else if(type===4){rbox(0.14,0.22,0.14,0xffffff,0,0.11,0,g,0.015);box(0.142,0.06,0.142,0x3b86d8,0,0.1,0,g);
+    const t=new THREE.Mesh(new THREE.CylinderGeometry(0.0,0.1,0.07,4,1),mat(0xf4f6fa));t.rotation.y=Math.PI/4;t.position.y=0.255;g.add(t);}
+  else{rbox(0.13,0.24,0.09,c,0,0.12,0,g,0.03);rbox(0.1,0.08,0.092,0xf6e65a,0,0.11,0,g,0.02);cyl(0.025,0.03,0.05,0xffffff,0,0.265,0,g,8);rbox(0.04,0.035,0.08,0xe24b4b,0,0.3,0.03,g,0.01);}
+  return g;
+}
 function buildShelf(i){
   const s=SLOTS[i],g=new THREE.Group();g.position.set(s.x,0,s.z);scene.add(g);
-  box(2.6,0.9,0.8,0xdfe6ee,0,0.45,0,g);
-  box(2.7,0.06,0.9,PRODUCTS[i].color,0,0.93,0,g);
+  const BASE=0x8f9bb0,BOARD=0xb9c2d1,PANEL=0xa9b3c4;
+  rbox(2.6,0.24,0.8,BASE,0,0.12,0,g,0.05);               // degrau de baixo
+  rbox(2.6,0.62,0.4,BOARD,0,0.31,-0.15,g,0.04);          // degrau de cima
+  rbox(2.6,1.0,0.1,PANEL,0,0.5,-0.36,g,0.05);            // fundo
+  for(const x of[-1.27,1.27])rbox(0.08,1.02,0.16,BASE,x,0.51,-0.33,g,0.03);
+  box(2.6,0.05,0.02,PRODUCTS[i].color,0,0.215,0.405,g);  // faixas de preço na cor do produto
+  box(2.6,0.05,0.02,PRODUCTS[i].color,0,0.595,0.055,g);
   const items=[];
-  for(let k=0;k<16;k++){const m=new THREE.Mesh(itemOnShelf,mat(PRODUCTS[i].color));m.position.set(-1.05+(k%8)*0.3,1.11,k<8?-0.18:0.18);m.castShadow=true;g.add(m);items.push(m);}
+  for(let k=0;k<16;k++){const it=makeItem(i,k);const lvl=k<8?0:1;
+    it.position.set(-1.05+(k%8)*0.3,lvl?0.62:0.24,lvl?-0.14:0.2);it.rotation.y=(Math.random()-0.5)*0.25;g.add(it);items.push(it);}
   stockPoints(i).forEach(p=>ring(p,PRODUCTS[i].color,0.6));
-  const L=addLabel('box',()=>V(s.x,s.z).setY(1.5));
+  const L=addLabel('box',()=>V(s.x,s.z).setY(1.7));
   shelves[i]={g,items,L};updateShelf(i);
 }
 function updateShelf(i){
@@ -274,21 +335,28 @@ function updateShelf(i){
   sh.items.forEach((m,k)=>m.visible=k<S.stock[i]);
   setLabel(sh.L,`${PRODUCTS[i].name} $${price(i)}<br><span class="${S.stock[i]?'':'empty'}">${S.stock[i]}/${cap(i)}</span>`);
 }
+function cardBox(c,w,h,d,parent){const g=new THREE.Group();rbox(w,h,d,c,0,h/2,0,g,0.035);
+  box(w*0.24,0.008,d+0.004,0xf5e6c8,0,h+0.001,0,g).material=mat(0xf5e6c8);
+  box(w*0.24,h*0.3,0.008,0xf5e6c8,0,h*0.85,d/2+0.002,g);parent&&parent.add(g);return g;}
 function buildPallet(i){
   const g=new THREE.Group();g.position.set(PALLET_X[i],0,PALLET_Z);scene.add(g);
-  box(1.1,0.14,1.1,0x9b7348,0,0.07,0,g);
-  for(let a=0;a<2;a++)for(let b=0;b<2;b++)for(let c=0;c<2;c++)box(0.45,0.4,0.45,PRODUCTS[i].color,-0.24+a*0.48,0.35+c*0.42,-0.24+b*0.48,g);
+  const W1=0x9c8668,W2=0x7f6c52;
+  for(const x of[-0.45,0,0.45])for(const z of[-0.45,0,0.45])rbox(0.16,0.09,0.16,W2,x,0.045,z,g,0.02);
+  for(const z of[-0.45,0,0.45])rbox(1.1,0.035,0.18,W1,0,0.105,z,g,0.012);
+  for(const x of[-0.45,-0.15,0.15,0.45])rbox(0.24,0.035,1.12,W1,x,0.14,0,g,0.012);
+  for(let a=0;a<2;a++)for(let b=0;b<2;b++)for(let c=0;c<2;c++){
+    const bx=cardBox(PRODUCTS[i].color,0.5,0.38,0.48,g);bx.position.set(-0.25+a*0.5,0.16+c*0.39,-0.24+b*0.49);bx.rotation.y=(Math.random()-0.5)*0.12;}
   ring(palletPoint(i),0xffffff,0.6);
   const L=addLabel('box',()=>V(PALLET_X[i],PALLET_Z).setY(1.5));
   pallets[i]={g,L};updatePallet(i);
 }
-function updatePallet(i){if(pallets[i])setLabel(pallets[i].L,`📦 $${cost(i)}`);}
+function updatePallet(i){if(pallets[i])setLabel(pallets[i].L,`<img class="ic" src="assets/box.png">$${cost(i)}`);}
 function unlockProduct(i){S.unlocked[i]=true;S.stock[i]=0;buildShelf(i);buildPallet(i);rebuildObstacles();toast(`Novo produto: ${PRODUCTS[i].name}!`);}
 
 // ---------- Funcionários ----------
 let cashierNpc=null,stocker=null;
-function spawnCashier(){const mesh=makePerson('casual',{LightBlue:0xff7f50});cashierNpc={mesh,pos:CASHIER_SPOT.clone()};mesh.position.copy(CASHIER_SPOT);mesh.rotation.y=0;}
-function spawnStocker(){const mesh=makePerson('worker',{Worker_Vest:0x20b2aa});stocker={mesh,pos:V(3,-2.6),path:[],state:'idle',type:-1,carry:0,t:0,stack:makeStack(mesh,6)};}
+function spawnCashier(){const mesh=makePerson('casual2_f',{Shirt:0xff7f50});cashierNpc={mesh,pos:CASHIER_SPOT.clone()};mesh.position.copy(CASHIER_SPOT);mesh.rotation.y=0;}
+function spawnStocker(){const mesh=makePerson('worker_f',{Shirt:0x20b2aa});stocker={mesh,pos:V(3,-2.6),path:[],state:'idle',type:-1,carry:0,t:0,stack:makeStack(mesh,6)};}
 
 // ---------- Áreas de compra ----------
 const PADS=[
@@ -324,12 +392,12 @@ function updatePads(dt){
       if(paid>=p.cost-1e-6){S.padPaid[p.id]=p.cost;p.buy();save();continue;}
     }
     const left=Math.ceil(p.cost-paid);
-    setLabel(p.L,`🔓 ${p.name}<br>$${left}<div class="bar"><i style="width:${paid/p.cost*100}%"></i></div>`);
+    setLabel(p.L,`<img class="ic" src="assets/lock.png">${p.name}<br>$${left}<div class="bar"><i style="width:${paid/p.cost*100}%"></i></div>`);
   }
 }
 
 // ---------- Jogador ----------
-const player={mesh:makePerson('worker',{Worker_Vest:0x2d6cdf},'Run'),pos:V(0,2),carry:0,type:-1,actT:0};
+const player={mesh:makePerson('worker_m',{Shirt:0x4cc24a,Hat:0xffcc33},'Run'),pos:V(0,2),carry:0,type:-1,actT:0};
 player.stack=makeStack(player.mesh,12);
 const carryCap=()=>CARRY_CAP[S.carryLvl];
 function nearBox(p,cx,cz,hw,hd,r){const dx=Math.max(Math.abs(p.x-cx)-hw,0),dz=Math.max(Math.abs(p.z-cz)-hd,0);return Math.hypot(dx,dz)<r;}
@@ -363,8 +431,8 @@ function spawnCustomer(){
   const unl=unlockedList();
   const n=1+Math.floor(Math.random()*Math.min(3,unl.length));
   const wants=unl.sort(()=>Math.random()-0.5).slice(0,n);
-  const col=CUST_COLORS[Math.floor(Math.random()*CUST_COLORS.length)],kind=['casual','business','adventurer'][Math.floor(Math.random()*3)];
-  const c={mesh:makePerson(kind,{LightBlue:col,Suit:col,Green:col}),pos:V(-0.5+Math.random(),9.5),path:[V(0,4.2)],wants,items:[],state:'walk',t:0,angry:false,off:(Math.random()-0.5)*1.6};
+  const col=CUST_COLORS[Math.floor(Math.random()*CUST_COLORS.length)],kind=CUSTOMER_KINDS[Math.floor(Math.random()*CUSTOMER_KINDS.length)];
+  const c={mesh:makePerson(kind,Math.random()<0.6?{Shirt:col}:{}),pos:V(-0.5+Math.random(),9.5),path:[V(0,4.2)],wants,items:[],state:'walk',t:0,angry:false,off:(Math.random()-0.5)*1.6};
   c.bubble=addLabel('bubble',()=>c.pos.clone().setY(1.75));
   planNext(c);customers.push(c);
 }
@@ -492,12 +560,12 @@ function renderUpgrades(){
   sec('Grátis');
   const adCash=25+15*unlockedList().length;
   const ready=performance.now()>=adCashReady;
-  row('📺 Assistir anúncio',`Ganhe $${adCash} na hora`,ready?'Assistir':'Aguarde',ready?'ad':'max',ready?()=>{modal.classList.add('hidden');showAd(()=>{S.money+=adCash;adCashReady=performance.now()+30000;floatText(player.pos,'+$'+adCash);});}:null);
+  row('<img class="ic" src="assets/ad.png">Assistir anúncio',`Ganhe $${adCash} na hora`,ready?'Assistir':'Aguarde',ready?'ad':'max',ready?()=>{modal.classList.add('hidden');showAd(()=>{S.money+=adCash;adCashReady=performance.now()+30000;floatText(player.pos,'+$'+adCash);});}:null);
   sec('Você');
-  if(S.carryLvl<CARRY_COST.length){const c=CARRY_COST[S.carryLvl];row('Carregar mais',`${CARRY_CAP[S.carryLvl]} → ${CARRY_CAP[S.carryLvl+1]} itens por vez`,'$'+c,'',buyable(c,()=>S.carryLvl++));}
-  else row('Carregar mais',`${CARRY_CAP[S.carryLvl]} itens (máximo)`,'MÁX','max',null);
-  if(S.speedLvl<SPEED_COST.length){const c=SPEED_COST[S.speedLvl];row('Velocidade',`Nível ${S.speedLvl+1} → ${S.speedLvl+2}`,'$'+c,'',buyable(c,()=>S.speedLvl++));}
-  else row('Velocidade','Nível máximo','MÁX','max',null);
+  if(S.carryLvl<CARRY_COST.length){const c=CARRY_COST[S.carryLvl];row('<img class="ic" src="assets/box.png">Carregar mais',`${CARRY_CAP[S.carryLvl]} → ${CARRY_CAP[S.carryLvl+1]} itens por vez`,'$'+c,'',buyable(c,()=>S.carryLvl++));}
+  else row('<img class="ic" src="assets/box.png">Carregar mais',`${CARRY_CAP[S.carryLvl]} itens (máximo)`,'MÁX','max',null);
+  if(S.speedLvl<SPEED_COST.length){const c=SPEED_COST[S.speedLvl];row('<img class="ic" src="assets/shoe.png">Velocidade',`Nível ${S.speedLvl+1} → ${S.speedLvl+2}`,'$'+c,'',buyable(c,()=>S.speedLvl++));}
+  else row('<img class="ic" src="assets/shoe.png">Velocidade','Nível máximo','MÁX','max',null);
   sec('Produtos e marcas');
   for(const i of unlockedList()){
     const P=PRODUCTS[i],bl=S.brand[i];
@@ -529,7 +597,7 @@ const camTarget=new THREE.Vector3();
 function updateCamera(dt,snap){
   const vf=THREE.MathUtils.degToRad(camera.fov)/2,hf=Math.atan(Math.tan(vf)*camera.aspect);
   const d=Math.max(4.6/Math.tan(hf),5/Math.tan(vf));
-  const dy=d*0.86,dz=d*0.5;
+  const dy=d*0.8,dz=d*0.6;
   camTarget.set(player.pos.x,dy,player.pos.z+dz);
   if(snap)camera.position.copy(camTarget);else camera.position.lerp(camTarget,Math.min(1,dt*5));
   camera.lookAt(camera.position.x,0,camera.position.z-dz);

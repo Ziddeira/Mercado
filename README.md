@@ -27,4 +27,6 @@ Página HTML com Three.js carregado de CDN e os personagens em `models/` (arquiv
 
 ## Créditos
 
-Personagens: **Ultimate Animated Character Pack**, de [Quaternius](https://quaternius.com), licença CC0 (domínio público, uso comercial liberado). Modelos usados em `models/`: Worker, Casual Character, Business Man e Adventurer.
+- Personagens: **Ultimate Animated Character Pack (nov/2019)**, de [Quaternius](https://quaternius.com), licença CC0 (domínio público, uso comercial liberado). Em `models/`, reduzidos para conter só as animações usadas (parado, andando, correndo).
+- Ícones e ícone do app (`assets/`): gerados por IA para o projeto.
+- Prateleiras, pallets, balcão, produtos e piso: modelados em código a partir das imagens de referência.
