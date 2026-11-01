@@ -204,8 +204,10 @@ await Promise.all(['worker_m','worker_f','casual2_f',...CUSTOMER_KINDS].map(asyn
 }));
 const people=new Set();
 // tints: {nomeDoMaterial: cor}
+const SKIN_TONES=[0xf6d5bb,0xeec3a0,0xe0ac85,0xc98d64,0xa86d45,0x8a5533,0x6b3f24,0x4f2e1b];
 function makePerson(kind,tints={},moveAnim='Walk'){
   const M=MODELS[kind];
+  tints=Object.assign({Skin:SKIN_TONES[Math.floor(Math.random()*SKIN_TONES.length)],Face:0x2b1d16},tints);
   const g=new THREE.Group();
   const m=SkeletonUtils.clone(M.scene);m.scale.setScalar(M.scale);
   m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;
