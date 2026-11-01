@@ -93,6 +93,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
 
 // ---------- Dados ----------
 const PRODUCTS = [
@@ -133,6 +134,22 @@ const unlockedList=()=>PRODUCTS.map((_,i)=>i).filter(i=>S.unlocked[i]);
 let boostUntil=0;
 const boost=()=>performance.now()<boostUntil?2:1;
 
+// ---------- Estação do ano (calendário do hemisfério norte) ----------
+function getSeason(){
+  const h=decodeURIComponent(location.hash.slice(1)).toLowerCase();
+  const map={primavera:'spring',verao:'summer','verão':'summer',outono:'autumn',inverno:'winter'};
+  if(map[h])return map[h];
+  const d=new Date(),v=(d.getMonth()+1)*100+d.getDate();
+  if(v>=1221||v<320)return'winter';if(v<621)return'spring';if(v<922)return'summer';return'autumn';
+}
+const SEASON=getSeason();
+const TREE_SUFFIX={spring:'',summer:'',autumn:'Autumn_',winter:'Snow_'}[SEASON];
+const TREES=['CommonTree_1','CommonTree_2','CommonTree_3','PineTree_1','PineTree_2'].map(n=>n.replace('_',`_${TREE_SUFFIX}`));
+const BUSHES=SEASON==='winter'?['Bush_Snow_1','Bush_Snow_2']:SEASON==='summer'?['BushBerries_1','Bush_2']:['Bush_1','Bush_2'];
+const BUILDINGS_A=['2Story_Mat','2Story_Balcony_Mat','3Story_Balcony_Mat','2Story_Sign_Mat','4Story_Mat','2Story_Columns_Mat','3Story_Slim_Mat','1Story_Sign_Mat','2Story_Wide_Mat','4Story_Center_Mat'];
+const BUILDINGS_B=['Building3_Small','Building2_Small','Building4','Building3_Big'];
+const CARS=['NormalCar1','NormalCar2','SUV','Taxi','SportsCar','SportsCar2','Cop'];
+const ENV_FILES=[...TREES,...BUSHES,...(SEASON==='spring'||SEASON==='summer'?['Flowers']:[]),...BUILDINGS_A,...BUILDINGS_B,...CARS,'Streetlight_Single'];
 // ---------- Three ----------
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
@@ -156,8 +173,10 @@ function cyl(rt,rb,h,c,x=0,y=0,z=0,parent=scene,seg=12){const m=new THREE.Mesh(n
 function box(w,h,d,c,x=0,y=0,z=0,parent=scene){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 
 // chão externo e calçada
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120),mat(0x6b8f5a));ground.rotation.x=-Math.PI/2;ground.position.y=-0.02;ground.receiveShadow=true;scene.add(ground);
-const walk=new THREE.Mesh(new THREE.PlaneGeometry(60,4),mat(0xb9b4a8));walk.rotation.x=-Math.PI/2;walk.position.set(2,-0.01,7.2);walk.receiveShadow=true;scene.add(walk);
+const GROUND={spring:0x7fb069,summer:0x6b9a4e,autumn:0xa39a58,winter:0xeef3f6}[SEASON];
+const SKY={spring:0xbfe3f5,summer:0xa8d8f5,autumn:0xd9d2c3,winter:0xdde6ee}[SEASON];
+scene.background.setHex(SKY);scene.fog=new THREE.Fog(SKY,45,110);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400),mat(GROUND));ground.rotation.x=-Math.PI/2;ground.position.y=-0.02;ground.receiveShadow=true;scene.add(ground);
 // textura do piso
 const ftc=document.createElement('canvas');ftc.width=ftc.height=256;const fx=ftc.getContext('2d');
 fx.fillStyle='#e7d4b4';fx.fillRect(0,0,256,256);
@@ -207,7 +226,7 @@ const toastEl=document.getElementById('toast');let toastT=0;
 function toast(t){toastEl.textContent=t;toastEl.style.opacity=1;toastT=2.2;}
 
 // ---------- Pessoas (modelos Quaternius, CC0) ----------
-const loader=new GLTFLoader();
+const loader=new GLTFLoader();loader.setMeshoptDecoder(MeshoptDecoder);
 const MODELS={};
 const CUSTOMER_KINDS=['casual_m','casual_f','casual2_m','casual3_m','casual3_f','oldclassy_f','suit_m'];
 await Promise.all(['worker_m','worker_f','casual2_f',...CUSTOMER_KINDS].map(async n=>{
@@ -215,6 +234,9 @@ await Promise.all(['worker_m','worker_f','casual2_f',...CUSTOMER_KINDS].map(asyn
   g.scene.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(g.scene,true);
   MODELS[n]={scene:g.scene,anims:g.animations,scale:1.6/(b.max.y-b.min.y)};
 }));
+const ENV={};
+await Promise.all(ENV_FILES.map(async n=>{const g=await loader.loadAsync(`models/env/${n}.glb`);
+  g.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});ENV[n]=g.scene;}));
 const people=new Set();
 // tints: {nomeDoMaterial: cor}
 const SKIN_TONES=[0xf6d5bb,0xeec3a0,0xe0ac85,0xc98d64,0xa86d45,0x8a5533,0x6b3f24,0x4f2e1b];
@@ -479,7 +501,7 @@ function spawnCustomer(){
   const n=1+Math.floor(Math.random()*Math.min(3,unl.length));
   const wants=unl.sort(()=>Math.random()-0.5).slice(0,n);
   const col=CUST_COLORS[Math.floor(Math.random()*CUST_COLORS.length)],kind=CUSTOMER_KINDS[Math.floor(Math.random()*CUSTOMER_KINDS.length)];
-  const c={mesh:makePerson(kind,Math.random()<0.6?{Shirt:col}:{}),pos:V(-0.5+Math.random(),9.5),path:[V(0,4.2)],wants,items:[],state:'walk',t:0,angry:false,off:(Math.random()-0.5)*1.6};
+  const c={mesh:makePerson(kind,Math.random()<0.6?{Shirt:col}:{}),pos:V(Math.random()<0.5?-13:13,6.4+Math.random()*0.8),path:[V(0,6.6),V(0,4.2)],wants,items:[],state:'walk',t:0,angry:false,off:(Math.random()-0.5)*1.6};
   c.bubble=addLabel('bubble',()=>c.pos.clone().setY(1.75));
   planNext(c);customers.push(c);
 }
@@ -487,7 +509,7 @@ function lastPoint(c){return c.path.length?c.path[c.path.length-1]:c.pos;}
 function planNext(c){
   if(c.wants.length){const t=custPoint(c.wants[0]);t.x+=SLOTS[c.wants[0]].back?c.off*0.3:c.off;c.path.push(...route(lastPoint(c),t));c.after='shop';}
   else if(c.items.length){c.path.push(...route(lastPoint(c),V(-0.8,1.6)),V(-0.8,4.1));c.after='queue';}
-  else{c.path.push(...route(lastPoint(c),V(0,3.5)),V(0,9.5));c.after='gone';c.angry=true;}
+  else{c.path.push(...route(lastPoint(c),V(0,3.5)),V(0,6.6),V(Math.random()<0.5?-14:14,6.6));c.after='gone';c.angry=true;}
   c.state='walk';
 }
 function updateCustomers(dt){
@@ -515,7 +537,7 @@ function updateCustomers(dt){
     if(f.t>=1){
       const total=f.items.reduce((a,b)=>a+b,0)*boost();
       S.money+=total;floatText(V(COUNTER.x,COUNTER.z),'+$'+total);
-      queue.shift();f.path=[V(0,4.4),V(0,9.5)];f.after='gone';f.state='walk';
+      queue.shift();f.path=[V(0,4.4),V(0,6.6),V(Math.random()<0.5?-14:14,6.6)];f.after='gone';f.state='walk';
     }
   }
   for(let k=customers.length-1;k>=0;k--){
@@ -655,6 +677,78 @@ function updateCamera(dt,snap){
 }
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 
+// ---------- Cidade: calçada, rua, prédios, árvores, carros e pedestres ----------
+const SW_Z0=5.15,SW_Z1=8.4,RD_Z0=8.4,RD_Z1=14.6,FS_Z1=17.4;
+function canvasTex(w,h,draw,rx,ry){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'));
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.repeat.set(rx,ry);t.anisotropy=4;return t;}
+function flat(w,d,matl,x,z,y=0.005){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),matl);m.rotation.x=-Math.PI/2;m.position.set(x,y,z);m.receiveShadow=true;scene.add(m);return m;}
+{
+  const snow=SEASON==='winter';
+  const swTex=canvasTex(128,128,x=>{x.fillStyle=snow?'#e4e8ec':'#cfcac0';x.fillRect(0,0,128,128);x.strokeStyle=snow?'#d3d8de':'#b9b3a7';x.lineWidth=3;x.strokeRect(0,0,128,128);},140/1.6,(SW_Z1-SW_Z0)/1.6);
+  flat(140,SW_Z1-SW_Z0,new THREE.MeshLambertMaterial({map:swTex}),5,(SW_Z0+SW_Z1)/2,0.004);
+  const fsTex=swTex.clone();fsTex.needsUpdate=true;fsTex.repeat.set(140/1.6,(FS_Z1-RD_Z1)/1.6);
+  flat(140,FS_Z1-RD_Z1,new THREE.MeshLambertMaterial({map:fsTex}),5,(RD_Z1+FS_Z1)/2,0.004);
+  const rdTex=canvasTex(256,256,x=>{x.fillStyle='#4f5359';x.fillRect(0,0,256,256);x.fillStyle='#f2d24b';x.fillRect(0,122,150,12);},140/6,1);
+  flat(140,RD_Z1-RD_Z0,new THREE.MeshLambertMaterial({map:rdTex}),5,(RD_Z0+RD_Z1)/2,0.002);
+  for(const z of[RD_Z0,RD_Z1])box(140,0.14,0.22,snow?0xdfe4e8:0xa9a49a,5,0.07,z);
+  for(let k=0;k<7;k++)flat(0.55,RD_Z1-RD_Z0-0.6,mat(0xf4f4f4),-1.9+k*0.7,(RD_Z0+RD_Z1)/2,0.006); // faixa de pedestres
+  if(snow){for(const z of[RD_Z0+0.35,RD_Z1-0.35])flat(140,0.5,mat(0xe9eef2),5,z,0.004);}
+}
+function envClone(n,scale=1,tints,shadow=true){const o=ENV[n].clone(true);
+  o.traverse(m=>{if(!m.isMesh)return;m.castShadow=shadow;if(tints&&tints[m.material.name]!=null){m.material=m.material.clone();m.material.color.setHex(tints[m.material.name]);}});
+  o.scale.setScalar(scale);scene.add(o);return o;}
+const FACADE=[0xe9d7b6,0xd98c7a,0x9cc3d5,0xe8c26b,0xb7c99a,0xf0e6dc,0xc9a3c9,0xa8c7b8];
+let bIdx=0;
+// coloca um prédio com a frente virada para a rua (ou para trás) a partir de uma borda
+function placeBuilding(edgeX,dir,frontZ,faceSouth=true,parent=scene,shadow=true){
+  const useA=bIdx%3!==2;const name=useA?BUILDINGS_A[bIdx%BUILDINGS_A.length]:BUILDINGS_B[bIdx%BUILDINGS_B.length];
+  const tints=useA?{Main:FACADE[bIdx%FACADE.length],Dark:0x5d6168}:null;bIdx++;
+  const o=envClone(name,useA?2.6:1.9,tints,shadow);if(!faceSouth)o.rotation.y=Math.PI;parent.add(o);
+  o.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(o);
+  o.position.x+=dir>0?edgeX-b.min.x:edgeX-b.max.x;
+  o.position.z+=faceSouth?frontZ-b.max.z:frontZ-b.min.z;
+  return dir>0?edgeX+(b.max.x-b.min.x):edgeX-(b.max.x-b.min.x);
+}
+// fileira a oeste do mercado
+{let x=-8.7;for(let k=0;k<5;k++)x=placeBuilding(x,-1,5.0)-0.5;}
+// fileira a leste: anda para o lado quando a loja é ampliada
+const eastRow=new THREE.Group();scene.add(eastRow);
+{let x=4.6;for(let k=0;k<6;k++)x=placeBuilding(x,1,5.0,true,eastRow)+0.5;}
+const eastX=()=>bounds().maxX-4;eastRow.position.x=eastX();
+// do outro lado da rua (frente virada para o mercado) e ao fundo
+{let x=-42;while(x<55)x=placeBuilding(x,1,FS_Z1+0.3,false,scene,false)+0.6;}
+{let x=-30;while(x<45)x=placeBuilding(x,1,-12,true,scene,false)+0.8;}
+// árvores, arbustos, postes e flores
+const NATURE=[];
+function tree(x,z,k){const o=envClone(TREES[k%TREES.length],1.15+((k*37)%10)/40);o.position.set(x,0,z);o.rotation.y=k*1.7;
+  flat(1.1,1.1,mat(SEASON==='winter'?0xd7dde2:0x6b5a45),x,z,0.008);NATURE.push(o);}
+{let k=0;for(let x=-42;x<56;x+=6.5){if(x<-10||x>15)tree(x,SW_Z1-0.75,k);tree(x+3.2,RD_Z1+0.9,k+3);k++;}}
+for(let x=-40;x<56;x+=13){const l=envClone('Streetlight_Single',3.2);l.position.set(x+1.6,0,SW_Z1-0.35);l.rotation.y=Math.PI;}
+[-7.2,-5.2,-3.4,2.6].forEach((x,k)=>{const b=envClone(BUSHES[k%BUSHES.length],0.55);b.position.set(x,0,SW_Z0+0.55);b.rotation.y=k;});
+if(ENV.Flowers)[-6.2,-4.3,3.4].forEach((x,k)=>{const f=envClone('Flowers',0.9,null,false);f.position.set(x,0,SW_Z0+0.45);f.rotation.y=k*2;});
+// carros
+const cars=[];
+for(let k=0;k<7;k++){const dir=k%2?-1:1;const o=envClone(CARS[k%CARS.length],1.05);
+  const c={o,dir,z:dir>0?RD_Z0+1.55:RD_Z1-1.55,x:-55+k*17+Math.random()*6,speed:6+Math.random()*3};
+  o.rotation.y=dir>0?Math.PI/2:-Math.PI/2;o.position.set(c.x,0,c.z);cars.push(c);}
+function updateCars(dt){for(const c of cars){c.x+=c.dir*c.speed*dt;if(c.x>62)c.x=-62;if(c.x<-62)c.x=62;c.o.position.x=c.x;}}
+// pedestres que só passam pela calçada
+const walkers=[];
+for(let k=0;k<7;k++){const dir=k%2?-1:1;const kind=CUSTOMER_KINDS[k%CUSTOMER_KINDS.length];
+  const w={mesh:makePerson(kind,Math.random()<0.6?{Shirt:CUST_COLORS[k%CUST_COLORS.length]}:{}),pos:V(-40+k*12,6.2+((k*3)%4)*0.45),dir,speed:1.3+Math.random()*0.7};
+  w.mesh.rotation.y=dir>0?Math.PI/2:-Math.PI/2;walkers.push(w);}
+function updateWalkers(dt){for(const w of walkers){w.pos.x+=w.dir*w.speed*dt;if(w.pos.x>48)w.pos.x=-45;if(w.pos.x<-45)w.pos.x=48;syncMesh(w);}}
+// neve no inverno, folhas no outono
+let fall=null;
+if(SEASON==='winter'||SEASON==='autumn'){
+  const N=SEASON==='winter'?1400:220,pos=new Float32Array(N*3);for(let i=0;i<N*3;i++)pos[i]=(Math.random()-0.5)*40;
+  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  fall=new THREE.Points(geo,new THREE.PointsMaterial({color:SEASON==='winter'?0xffffff:0xd9822b,size:SEASON==='winter'?0.09:0.16,transparent:true,opacity:0.9,depthWrite:false}));scene.add(fall);
+}
+function updateFall(dt){if(!fall)return;const a=fall.geometry.attributes.position,arr=a.array,sp=SEASON==='winter'?1.6:0.9,t=performance.now()/1000;
+  for(let i=0;i<arr.length;i+=3){arr[i+1]-=sp*dt;arr[i]+=Math.sin(t+i)*dt*0.4;if(arr[i+1]<0){arr[i+1]=12+Math.random()*4;}}
+  a.needsUpdate=true;fall.position.set(player.pos.x,0,player.pos.z);}
+
 // ---------- Inicialização ----------
 buildStore();
 unlockedList().forEach(i=>{buildShelf(i);buildPallet(i);});
@@ -667,7 +761,9 @@ const moneyEl=document.getElementById('money'),boostEl=document.getElementById('
 let saveT=0,last=performance.now();
 function loop(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
-  updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStocker(dt);updatePeople(dt);
+  updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStocker(dt);updateCars(dt);updateWalkers(dt);updateFall(dt);updatePeople(dt);
+  eastRow.position.x+=(eastX()-eastRow.position.x)*Math.min(1,dt*1.5);
+  sun.position.set(player.pos.x+8,16,player.pos.z+10);sun.target.position.set(player.pos.x+2,0,player.pos.z);
   for(let k=floats.length-1;k>=0;k--){const f=floats[k];f.life-=dt;f.p.y+=dt*1.3;f.L.el.style.opacity=Math.min(1,f.life*2);if(f.life<=0){removeLabel(f.L);floats.splice(k,1);}}
   if(toastT>0){toastT-=dt;if(toastT<=0)toastEl.style.opacity=0;}
   updateCamera(dt);renderer.render(scene,camera);updateLabels();

@@ -12,6 +12,10 @@ Abra o `index.html` no navegador (celular ou PC).
 - **Desbloquear:** pise nos quadrados verdes.
 - **Melhorias:** capacidade de carga, velocidade, tamanho das prateleiras e marcas dos produtos.
 
+## Estações do ano
+
+As árvores e o chão mudam com a estação real, pelo calendário dos EUA (primavera em 20/mar, verão em 21/jun, outono em 22/set, inverno em 21/dez). No inverno cai neve e no outono caem folhas. Para testar uma estação, abra o jogo com `#primavera`, `#verao`, `#outono` ou `#inverno` no fim do endereço.
+
 ## Anúncios
 
 Por enquanto os anúncios são simulados (uma tela de 3 segundos) em dois lugares:
@@ -28,5 +32,6 @@ Página HTML com Three.js carregado de CDN e os personagens em `models/` (arquiv
 ## Créditos
 
 - Personagens: **Ultimate Animated Character Pack (nov/2019)**, de [Quaternius](https://quaternius.com), licença CC0 (domínio público, uso comercial liberado). Em `models/`, reduzidos para conter só as animações usadas (parado, andando, correndo).
+- Cidade: **Ultimate Nature Pack**, **Buildings Pack**, **Textured Building Pack** e **Realistic Car Pack**, de Quaternius (CC0). Em `models/env/`, comprimidos com meshopt.
 - Ícones e ícone do app (`assets/`): gerados por IA para o projeto.
 - Prateleiras, pallets, balcão, produtos e piso: modelados em código a partir das imagens de referência.
