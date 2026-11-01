@@ -7,6 +7,7 @@ cp('assets');cp('models');
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 html=html.replace('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js','./vendor/three/build/three.module.js')
          .replace('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/','./vendor/three/examples/jsm/');
+html=html.replace("const TEST_MODE=HASH.includes('teste');",'const TEST_MODE=false; // desativado no app (Play Store)');
 fs.writeFileSync(path.join(out,'index.html'),html);
 // copia só os módulos do three.js que o jogo usa (e o que eles importam)
 const T=path.join(root,'node_modules/three');
