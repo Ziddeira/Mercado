@@ -60,6 +60,8 @@ button:disabled{opacity:.5;cursor:default}
 #look .opt button{flex:1;background:#283044;color:#fff;box-shadow:none;padding:10px 6px}
 #look .opt button.on{background:#ffcc33;color:#222}
 #look .done{width:100%;margin-top:14px;background:#3ddc84;color:#102;font-size:16px;padding:12px}
+#testbox{position:fixed;left:10px;bottom:84px;z-index:6;display:flex;flex-direction:column;gap:6px;background:rgba(200,30,60,.9);color:#fff;padding:8px;border-radius:12px;font-size:11px;text-align:center}
+#testbox button{background:#fff;color:#c81e3c;padding:8px 10px;font-size:13px}
 #zoom{position:fixed;right:10px;bottom:84px;display:flex;flex-direction:column;gap:8px;z-index:5}
 #zoom button{width:44px;height:44px;padding:0;border-radius:50%;background:rgba(20,24,34,.85);color:#fff;font-size:24px;line-height:1}
 .adbox{background:#fff;color:#222;border-radius:16px;padding:28px 24px;text-align:center;width:min(340px,86vw)}
@@ -171,10 +173,12 @@ const PAD_COST={p1:40,p2:120,p3:350,p4:600,p5:1000,p6:1800,p7:2500,p8:3200,p9:40
   cash0:200,stk1:350,reg1:800,cash1:600,stk2:900,east:1500,reg2:1500,cash2:1000,reg3:2500,cash3:1500,stk3:2000,
   back:5000,bath:3000,cleaner:1500,snack:6000,attendant:2000,waiter:2000};
 // ---------- Estação do ano (calendário do hemisfério norte) ----------
+// endereço com #teste ativa o modo de teste; pode combinar com a estação: #teste-inverno
+const HASH=decodeURIComponent(location.hash.slice(1)).toLowerCase().split(/[-,]/);
+const TEST_MODE=HASH.includes('teste');
 function getSeason(){
-  const h=decodeURIComponent(location.hash.slice(1)).toLowerCase();
   const map={primavera:'spring',verao:'summer','verão':'summer',outono:'autumn',inverno:'winter'};
-  if(map[h])return map[h];
+  for(const h of HASH)if(map[h])return map[h];
   const d=new Date(),v=(d.getMonth()+1)*100+d.getDate();
   if(v>=1221||v<320)return'winter';if(v<621)return'spring';if(v<922)return'summer';return'autumn';
 }
@@ -1095,6 +1099,20 @@ lookEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)ret
 function openLook(){customizing=true;joy.active=false;joy.x=joy.y=0;S.look=look();renderLook();lookEl.classList.remove('hidden');document.getElementById('hud').style.visibility='hidden';hintEl.style.visibility='hidden';labelsEl.style.visibility='hidden';document.getElementById('zoom').style.visibility='hidden';}
 function closeLook(){customizing=false;lookEl.classList.add('hidden');document.getElementById('hud').style.visibility='';hintEl.style.visibility='';labelsEl.style.visibility='';document.getElementById('zoom').style.visibility='';save();}
 document.getElementById('btnLook').onclick=openLook;
+// ---------- Modo de teste ----------
+function unlockAll(){
+  for(let round=0;round<40;round++){let any=false;
+    for(const p of PADS){if(isBought(p)||!p.cond())continue;S.padPaid[p.id]=p.cost;if(p.mesh){scene.remove(p.mesh);removeLabel(p.L);p.mesh=null;}p.buy();any=true;}
+    if(!any)break;}
+  save();toast('Tudo liberado!');
+}
+if(TEST_MODE){
+  const box=document.createElement('div');box.id='testbox';
+  box.innerHTML='<b>MODO TESTE</b><button id="tMoney">+$50.000</button><button id="tAll">Liberar tudo</button>';
+  document.body.appendChild(box);
+  document.getElementById('tMoney').onclick=()=>{S.money+=50000;save();toast('+$50.000');};
+  document.getElementById('tAll').onclick=unlockAll;
+}
 const firstRun=!S.look;
 if(firstRun)openLook();
 updateCamera(0,true);

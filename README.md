@@ -25,6 +25,10 @@ As árvores e o chão mudam com a estação real, pelo calendário dos EUA (prim
    - **Banheiros**: os clientes usam, gastam papel e às vezes sujam. Sem papel ou sujo, o cliente vai embora sem pagar. Pegue papel no pallet branco do estoque e fique perto da sujeira para limpar. A **faxineira** faz as duas coisas sozinha.
    - **Lanchonete**: a chapa prepara os lanches; leve-os ao balcão vermelho. Os clientes compram, comem nas mesas e deixam sujeira. **Atendente** leva os lanches ao balcão; **ajudante de mesas** limpa.
 
+## Modo de teste
+
+Abra o jogo com `#teste` no fim do endereço (ex.: `.../#teste` ou `.../#teste-inverno`). Aparece um painel com **+$50.000** e **Liberar tudo**. Tire isso antes de publicar o jogo de verdade.
+
 Zoom: botões **+ / −**, pinça com dois dedos ou roda do mouse.
 
 ## Anúncios
