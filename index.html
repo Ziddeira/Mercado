@@ -112,6 +112,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
 // ---------- Dados ----------
 const PRODUCTS = [
@@ -1263,12 +1264,27 @@ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updat
 const SW_Z0=5.15,SW_Z1=8.4,RD_Z0=8.4,RD_Z1=14.6,FS_Z1=17.4;
 function canvasTex(w,h,draw,rx,ry){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'));
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.repeat.set(rx,ry);t.anisotropy=4;return t;}
+const BEACH=THEME_ID==='praia';
+// calçadão de Copacabana: ondas pretas e brancas em mosaico de pedrinhas
+function copaTex(rx,ry){return canvasTex(256,256,x=>{
+  const img=x.createImageData(256,256),d=img.data;
+  for(let py=0;py<256;py++)for(let px=0;px<256;px++){
+    const v=py+20*Math.sin(px/128*Math.PI*2)+6*Math.sin(px/64*Math.PI*2+1);
+    const black=Math.floor(((v%128)+128)%128/64)===0;const n=(Math.random()*14)|0;const c=black?38+n:236-n;const i=(py*256+px)*4;
+    d[i]=c;d[i+1]=c;d[i+2]=black?c+2:c-3;d[i+3]=255;}
+  x.putImageData(img,0,0);
+  // rejunte irregular entre as pedrinhas (grade com tremida, sem emenda)
+  const N=36,cs=256/N,J=[];for(let i=0;i<N;i++){J[i]=[];for(let j=0;j<N;j++)J[i][j]=[(Math.random()-0.5)*cs*0.55,(Math.random()-0.5)*cs*0.55];}
+  const pt=(i,j)=>{const a=J[(i%N+N)%N][(j%N+N)%N];return[i*cs+a[0],j*cs+a[1]];};
+  x.strokeStyle='rgba(150,150,150,0.85)';x.lineWidth=1.1;x.beginPath();
+  for(let i=-1;i<=N;i++)for(let j=-1;j<=N;j++){const a=pt(i,j),b=pt(i+1,j),c=pt(i,j+1);x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.moveTo(a[0],a[1]);x.lineTo(c[0],c[1]);}
+  x.stroke();},rx,ry);}
 function flat(w,d,matl,x,z,y=0.005){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),matl);m.rotation.x=-Math.PI/2;m.position.set(x,y,z);m.receiveShadow=true;scene.add(m);return m;}
 {
   const snow=SEASON==='winter';
-  const swTex=canvasTex(128,128,x=>{x.fillStyle=snow?'#e4e8ec':'#cfcac0';x.fillRect(0,0,128,128);x.strokeStyle=snow?'#d3d8de':'#b9b3a7';x.lineWidth=3;x.strokeRect(0,0,128,128);},140/1.6,(SW_Z1-SW_Z0)/1.6);
+  const swTex=BEACH?copaTex(140/3.2,(SW_Z1-SW_Z0)/3.2):canvasTex(128,128,x=>{x.fillStyle=snow?'#e4e8ec':'#cfcac0';x.fillRect(0,0,128,128);x.strokeStyle=snow?'#d3d8de':'#b9b3a7';x.lineWidth=3;x.strokeRect(0,0,128,128);},140/1.6,(SW_Z1-SW_Z0)/1.6);
   flat(140,SW_Z1-SW_Z0,new THREE.MeshLambertMaterial({map:swTex}),5,(SW_Z0+SW_Z1)/2,0.004);
-  const fsTex=swTex.clone();fsTex.needsUpdate=true;fsTex.repeat.set(140/1.6,(FS_Z1-RD_Z1)/1.6);
+  const fsTex=swTex.clone();fsTex.needsUpdate=true;fsTex.repeat.set(140/(BEACH?3.2:1.6),(FS_Z1-RD_Z1)/(BEACH?3.2:1.6));
   flat(140,FS_Z1-RD_Z1,new THREE.MeshLambertMaterial({map:fsTex}),5,(RD_Z1+FS_Z1)/2,0.004);
   const rdTex=canvasTex(256,256,x=>{x.fillStyle='#4f5359';x.fillRect(0,0,256,256);x.fillStyle='#f2d24b';x.fillRect(0,122,150,12);},140/6,1);
   flat(140,RD_Z1-RD_Z0,new THREE.MeshLambertMaterial({map:rdTex}),5,(RD_Z0+RD_Z1)/2,0.002);
@@ -1298,7 +1314,7 @@ const eastRow=new THREE.Group();scene.add(eastRow);
 {let x=4.6;for(let k=0;k<6;k++)x=placeBuilding(x,1,5.0,true,eastRow)+0.5;}
 const eastX=()=>bounds().maxX-4;eastRow.position.x=eastX();
 // do outro lado da rua (frente virada para o mercado) e ao fundo
-{let x=-42;while(x<55)x=placeBuilding(x,1,FS_Z1+0.3,false,scene,false)+0.6;}
+if(!BEACH){let x=-42;while(x<55)x=placeBuilding(x,1,FS_Z1+0.3,false,scene,false)+0.6;}
 // bosque atrás do mercado e dos prédios (instanciado em blocos para ficar leve)
 const forestLot=[];
 {
@@ -1308,9 +1324,9 @@ const forestLot=[];
   for(let x=-50;x<=60;x+=4.6)for(let z=-6;z>=-42;z-=4.6){
     const jx=x+(rnd()-0.5)*2.8,jz=z+(rnd()-0.5)*2.8;
     if(jx>-10.5&&jx<16.5&&jz>-27.5)continue;     // terreno do mercado (até a ampliação dos fundos)
-    pts.push([jx,jz,rnd(),false]);}
+    if(!BEACH)pts.push([jx,jz,rnd(),false]);}
   // algumas árvores no terreno atrás da loja enquanto ela não cresce para os fundos
-  for(let x=-50;x<=60;x+=4.6)for(let z=28;z<=44;z+=4.6)pts.push([x+(rnd()-0.5)*2.8,z+(rnd()-0.5)*2.8,rnd(),false]); // atrás dos prédios do outro lado da rua
+  if(!BEACH)for(let x=-50;x<=60;x+=4.6)for(let z=28;z<=44;z+=4.6)pts.push([x+(rnd()-0.5)*2.8,z+(rnd()-0.5)*2.8,rnd(),false]); // atrás dos prédios do outro lado da rua
   for(let x=-7;x<=13;x+=4.4)pts.push([x+(rnd()-0.5)*1.5,-20.5+(rnd()-0.5)*2,rnd(),true]);
   const chunks=new Map();
   for(const p of pts){const key=(p[3]?'lot':Math.floor(p[0]/24)+','+Math.floor(p[1]/24))+'|'+Math.floor(p[2]*FT.length)%FT.length;
@@ -1321,6 +1337,56 @@ const forestLot=[];
       const im=new THREE.InstancedMesh(m.geometry,m.material,arr.length);im.castShadow=lot;im.receiveShadow=false;
       arr.forEach((p,k)=>{const sc=1.2+p[2]*0.5;M.compose(V(p[0],p[1]),Q.setFromAxisAngle(UP,p[2]*6.28),new THREE.Vector3(sc,sc,sc));M.multiply(m.matrixWorld);im.setMatrixAt(k,M);});
       im.computeBoundingSphere();scene.add(im);if(lot)forestLot.push(im);});}
+}
+// ---------- Praia: prédios altos atrás do mercado, areia e mar ----------
+let updateSea=()=>{};
+if(BEACH){
+  let seed=11;const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
+  const COLS=['#f1ede4','#e6dccb','#d9e6ea','#f3e3c8','#e9e9e9','#cfdde3','#efe1d6','#dfe7dc'];
+  const winTex=COLS.map(col=>{const c=document.createElement('canvas');c.width=64;c.height=64;const x=c.getContext('2d');
+    x.fillStyle=col;x.fillRect(0,0,64,64);
+    x.fillStyle='rgba(0,0,0,0.10)';x.fillRect(0,26,64,6);x.fillRect(0,58,64,6);           // faixas das lajes / sacadas
+    for(const yy of[6,38])for(const xx of[6,38]){x.fillStyle='#6f93a6';x.fillRect(xx,yy,20,18);x.fillStyle='rgba(255,255,255,0.35)';x.fillRect(xx,yy,20,5);}
+    return c;});
+  // tudo mesclado por cor (poucas chamadas de desenho para rodar leve no celular)
+  const winMat=winTex.map(c=>{const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return new THREE.MeshLambertMaterial({map:t});});
+  const groups=new Map(),bases=[],tops=[];
+  function tower(cx,cz,w,d,h,ci,near){
+    const g=new THREE.BoxGeometry(w,h,d),uv=g.attributes.uv,fl=Math.max(1,Math.round(h/3.2));
+    for(let f=0;f<6;f++){const across=f<2?d:w;for(let v=0;v<4;v++){const i=f*4+v;
+      if(f===2||f===3)uv.setXY(i,0.02,0.02);else uv.setXY(i,uv.getX(i)*Math.max(1,Math.round(across/3.2)),uv.getY(i)*fl);}}
+    g.translate(cx,h/2,cz);const key=ci+(near?'n':'f');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(g);
+    bases.push(new THREE.BoxGeometry(w+0.3,0.5,d+0.3).translate(cx,0.25,cz));
+    if(h>30)tops.push(new THREE.BoxGeometry(w*0.4,2.2,d*0.4).translate(cx,h+1.1,cz));
+  }
+  for(let z=-11;z>=-75;z-=10)for(let x=-62;x<=74;x+=9){
+    const jx=x+(rnd()-0.5)*2,jz=z+(rnd()-0.5)*2;const w=5.5+rnd()*2.5,d=5.5+rnd()*2.5;
+    if(jx+w/2>-11.5&&jx-w/2<17.5&&jz+d/2>-29)continue;          // terreno do mercado e ampliação dos fundos
+    const r=rnd();const h=r<0.35?6+rnd()*10:r<0.75?16+rnd()*22:45+rnd()*55; // pequenos, médios e arranha-céus
+    tower(jx,jz,w,d,h,(rnd()*COLS.length)|0,z>-25);
+  }
+  for(const [key,arr] of groups){const m=new THREE.Mesh(mergeGeometries(arr),winMat[parseInt(key)]);m.castShadow=key.endsWith('n');m.receiveShadow=true;scene.add(m);}
+  for(const [arr,c] of[[bases,0x8b8780],[tops,0xb9b4aa]])if(arr.length){const m=new THREE.Mesh(mergeGeometries(arr),mat(c));m.receiveShadow=true;scene.add(m);}
+  // mar com ondinhas indo e voltando
+  const SHORE=31;
+  flat(400,10,mat(0xcdb27c),5,SHORE+2,-0.012);                   // areia molhada
+  const waterM=new THREE.MeshLambertMaterial({color:0x2fa8c4,transparent:true,opacity:0.92});
+  const water=flat(400,220,waterM,5,SHORE+110,0.01);
+  const deep=flat(400,200,mat(0x1d7fa6),5,SHORE+130,0.006);
+  const foamM=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.8,depthWrite:false});
+  const foam=flat(400,0.9,foamM,5,SHORE,0.02);
+  const crests=[0,1,2].map(k=>{const m=new THREE.MeshBasicMaterial({color:0xeaf8fb,transparent:true,opacity:0,depthWrite:false});return{m,o:flat(400,0.45,m,5,SHORE+10,0.018),ph:k/3};});
+  updateSea=()=>{const t=performance.now()/1000;
+    const e=SHORE+Math.sin(t*0.9)*1.6+Math.sin(t*0.37)*0.6;          // borda da água vai e volta
+    water.position.z=e+110;foam.position.z=e;foamM.opacity=0.55+0.35*Math.max(0,Math.cos(t*0.9));foam.scale.y=1+0.6*Math.max(0,-Math.sin(t*0.9));
+    for(const c of crests){const f=(t*0.12+c.ph)%1;c.o.position.z=e+14-f*13.5;c.m.opacity=Math.sin(f*Math.PI)*0.75;c.o.scale.y=0.6+f*1.2;}};
+  // guarda-sóis e cangas na areia
+  const UMB=[[0xe2473b,0xffffff],[0x2b8fd6,0xffffff],[0xf2b632,0xffffff],[0x2fae6b,0xfff3c9],[0xe86aa6,0xffffff]];
+  [-24,-11,3,16,29,42].forEach((x,k)=>{const z=22+(k%3)*2.2,[a,b]=UMB[k%UMB.length];
+    cyl(0.05,0.05,2.2,0xeeeeee,x,1.1,z);
+    const g=new THREE.Group();g.position.set(x,2.15,z);scene.add(g);
+    for(let i=0;i<8;i++){const sg=new THREE.Mesh(new THREE.ConeGeometry(1.25,0.55,8,1,true,i*Math.PI/4,Math.PI/4),new THREE.MeshLambertMaterial({color:i%2?a:b,side:THREE.DoubleSide}));sg.castShadow=true;g.add(sg);}
+    flat(1.0,1.9,mat(UMB[(k+2)%UMB.length][0]),x+1.2,z+0.4,0.015).rotation.z=0.3;});
 }
 // árvores, arbustos, postes e flores
 const NATURE=[];
@@ -1369,7 +1435,7 @@ let saveT=0,last=performance.now();
 function loop(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
   updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStaff(dt);updateGrill(dt);updateCleanFX(dt);updateSteam(dt);updatePop(dt);updateIncome(dt);if(window.__lights)window.__lights.forEach((m,k)=>m.visible=((now/400|0)+k)%3!==0);
-  updateCars(dt);updateWalkers(dt);updateFall(dt);updatePeople(dt);
+  updateCars(dt);updateWalkers(dt);updateSea();updateFall(dt);updatePeople(dt);
   eastRow.position.x+=(eastX()-eastRow.position.x)*Math.min(1,dt*1.5);
   sun.position.set(player.pos.x+8,16,player.pos.z+10);sun.target.position.set(player.pos.x+2,0,player.pos.z);
   for(let k=floats.length-1;k>=0;k--){const f=floats[k];f.life-=dt;f.p.y+=dt*1.3;f.L.el.style.opacity=Math.min(1,f.life*2);if(f.life<=0){removeLabel(f.L);floats.splice(k,1);}}
