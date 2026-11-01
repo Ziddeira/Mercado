@@ -32,11 +32,12 @@ button:disabled{opacity:.5;cursor:default}
 .empty{color:#ff6b6b}
 .float{font-size:17px;color:#7CFC7C}
 .bubble{font-size:17px}
-#hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(20,24,34,.85);color:#fff;padding:9px 14px;border-radius:12px;font-size:14px;font-weight:700;z-index:5;pointer-events:none;text-align:center;max-width:88vw}
+#hint{position:fixed;bottom:auto;top:162px;left:50%;transform:translateX(-50%);background:rgba(20,24,34,.85);color:#fff;padding:9px 14px;border-radius:12px;font-size:14px;font-weight:700;z-index:5;pointer-events:none;text-align:center;max-width:70vw;font-size:13px;opacity:.92}
 #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#3ddc84;color:#102;padding:10px 16px;border-radius:12px;font-weight:800;z-index:6;pointer-events:none;transition:opacity .3s}
 #joyBase,#joyKnob{position:fixed;border-radius:50%;pointer-events:none;z-index:4;transform:translate(-50%,-50%)}
-#joyBase{width:130px;height:130px;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.35)}
-#joyKnob{width:50px;height:50px;background:rgba(255,255,255,.6)}
+#joyBase{width:130px;height:130px;background:rgba(20,24,34,.25);border:3px solid rgba(255,255,255,.55);transition:background .15s}
+#joyBase.on{background:rgba(20,24,34,.4)}
+#joyKnob{width:56px;height:56px;background:rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(0,0,0,.35)}
 #modal,#ad{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10;display:flex;align-items:center;justify-content:center}
 .card{background:#1f2533;color:#fff;border-radius:16px;width:min(420px,92vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .mhead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #333b4d;font-size:18px}
@@ -60,7 +61,7 @@ button:disabled{opacity:.5;cursor:default}
 #look .opt button{flex:1;background:#283044;color:#fff;box-shadow:none;padding:10px 6px}
 #look .opt button.on{background:#ffcc33;color:#222}
 #look .done{width:100%;margin-top:14px;background:#3ddc84;color:#102;font-size:16px;padding:12px}
-#testbox{position:fixed;left:10px;bottom:84px;z-index:6;display:flex;flex-direction:column;gap:6px;background:rgba(200,30,60,.9);color:#fff;padding:8px;border-radius:12px;font-size:11px;text-align:center}
+#testbox{position:fixed;left:10px;top:96px;z-index:6;display:flex;flex-direction:column;gap:6px;background:rgba(200,30,60,.9);color:#fff;padding:8px;border-radius:12px;font-size:11px;text-align:center}
 #testbox button{background:#fff;color:#c81e3c;padding:8px 10px;font-size:13px}
 #zoom{position:fixed;right:10px;bottom:84px;display:flex;flex-direction:column;gap:8px;z-index:5}
 #zoom button{width:44px;height:44px;padding:0;border-radius:50%;background:rgba(20,24,34,.85);color:#fff;font-size:24px;line-height:1}
@@ -985,28 +986,30 @@ const keys={};addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);addE
 const joy={active:false,ox:0,oy:0,x:0,y:0,id:null};
 const jb=document.getElementById('joyBase'),jk=document.getElementById('joyKnob');
 const cv=renderer.domElement;
-// Controles de toque: joystick que acompanha o dedo + pinça para zoom (só com dois dedos de propósito)
-const touches=new Map();let pinch=null;const JR=60;
-function hideJoy(){joy.active=false;joy.id=null;joy.x=joy.y=0;jb.classList.add('hidden');jk.classList.add('hidden');}
+// Controles de toque: joystick fixo no canto inferior esquerdo + pinça para zoom (dois dedos fora do joystick)
+const touches=new Map();let pinch=null;const JR=55;
+function placeJoy(){joy.ox=Math.max(80,innerWidth*0.2);joy.oy=innerHeight-125;drawJoy();}
 function drawJoy(){jb.style.left=joy.ox+'px';jb.style.top=joy.oy+'px';jk.style.left=joy.ox+joy.x*JR+'px';jk.style.top=joy.oy+joy.y*JR+'px';}
+function hideJoy(){joy.active=false;joy.id=null;joy.x=joy.y=0;drawJoy();jb.classList.remove('on');}
+function setStick(cx,cy){let dx=cx-joy.ox,dy=cy-joy.oy;const d=Math.hypot(dx,dy);if(d>JR){dx=dx/d*JR;dy=dy/d*JR;}joy.x=dx/JR;joy.y=dy/JR;drawJoy();}
+placeJoy();jb.classList.remove('hidden');jk.classList.remove('hidden');
+addEventListener('resize',placeJoy);
 cv.addEventListener('pointerdown',e=>{
-  if(e.isPrimary)touches.clear();                 // primeiro dedo de um gesto novo: descarta toques "presos"
+  if(e.isPrimary)touches.clear();                 // gesto novo: descarta toques "presos"
   touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(customizing)return;
-  if(touches.size===2){const [p1,p2]=[...touches.values()];const d=Math.hypot(p1.x-p2.x,p1.y-p2.y);
-    hideJoy();if(d>30)pinch={d0:d,z0:zoom,on:false};return;}
-  if(touches.size===1){joy.active=true;joy.id=e.pointerId;joy.ox=e.clientX;joy.oy=e.clientY;joy.x=joy.y=0;drawJoy();jb.classList.remove('hidden');jk.classList.remove('hidden');}
+  if(!joy.active&&Math.hypot(e.clientX-joy.ox,e.clientY-joy.oy)<JR*2){joy.active=true;joy.id=e.pointerId;jb.classList.add('on');setStick(e.clientX,e.clientY);return;}
+  const others=[...touches.entries()].filter(([id])=>id!==joy.id).map(([,v])=>v);
+  if(others.length===2){const d=Math.hypot(others[0].x-others[1].x,others[0].y-others[1].y);if(d>30)pinch={d0:d,z0:zoom,on:false};}
 });
 addEventListener('pointermove',e=>{
   if(!touches.has(e.pointerId))return;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pinch&&touches.size===2){const [p1,p2]=[...touches.values()];const r=Math.hypot(p1.x-p2.x,p1.y-p2.y)/pinch.d0;
-    if(!pinch.on&&Math.abs(r-1)>0.12)pinch.on=true;  // só começa o zoom depois de um movimento claro de pinça
-    if(pinch.on)setZoom(pinch.z0/r);return;}
-  if(joy.active&&e.pointerId===joy.id){let dx=e.clientX-joy.ox,dy=e.clientY-joy.oy;const d=Math.hypot(dx,dy);
-    if(d>JR){joy.ox+=dx/d*(d-JR);joy.oy+=dy/d*(d-JR);dx=e.clientX-joy.ox;dy=e.clientY-joy.oy;} // a base acompanha o dedo
-    joy.x=dx/JR;joy.y=dy/JR;drawJoy();}
+  if(joy.active&&e.pointerId===joy.id){setStick(e.clientX,e.clientY);return;}
+  const others=[...touches.entries()].filter(([id])=>id!==joy.id).map(([,v])=>v);
+  if(pinch&&others.length===2){const r=Math.hypot(others[0].x-others[1].x,others[0].y-others[1].y)/pinch.d0;
+    if(!pinch.on&&Math.abs(r-1)>0.12)pinch.on=true;if(pinch.on)setZoom(pinch.z0/r);}
 });
-const endTouch=e=>{touches.delete(e.pointerId);if(touches.size<2)pinch=null;if(e.pointerId===joy.id)hideJoy();};
+const endTouch=e=>{touches.delete(e.pointerId);if(e.pointerId===joy.id)hideJoy();else pinch=null;};
 addEventListener('pointerup',endTouch);addEventListener('pointercancel',endTouch);
 addEventListener('blur',()=>{touches.clear();pinch=null;hideJoy();});
 document.addEventListener('visibilitychange',()=>{touches.clear();pinch=null;hideJoy();});
