@@ -439,18 +439,67 @@ function buildBathroom(){
     rbox(0.5,0.08,0.58,0xf3f6f8,0,0.42,0.08,g,0.04);           // assento
     rbox(0.5,0.42,0.2,0xffffff,0,0.6,-0.22,g,0.05);            // caixa d'água
     const roll=cyl(0.07,0.07,0.1,0xffffff,0.45,0.75,0.05,g,12);roll.rotation.z=Math.PI/2;
-    const dirt=new THREE.Mesh(new THREE.CircleGeometry(0.45,16),new THREE.MeshLambertMaterial({color:0x8a6a2f,transparent:true,opacity:0.75}));
-    dirt.rotation.x=-Math.PI/2;dirt.position.set(st.dirt.x,0.012,st.dirt.z);scene.add(dirt);
+    const dirtFX=makeBathDirt(st);
     const L=addLabel('box',()=>V(st.x,-19.6).setY(1.4));
-    stallObjs[k]={g,roll,dirt,L,busy:null,clean:0};updateStall(k);
+    stallObjs[k]={g,roll,dirtFX,L,busy:null,clean:0};updateStall(k);
   });
   // pias
   for(const z of[-17.8,-16.4]){rbox(0.5,0.85,0.6,0xd9e3ea,13.55,0.42,z,scene,0.05);cyl(0.17,0.12,0.08,0xffffff,13.55,0.9,z,scene,14);}
   buildTPPallet();
 }
-function updateStall(k){const o=stallObjs[k];if(!o)return;o.roll.visible=S.tp[k]>0;o.dirt.visible=S.dirty[k];
+function updateStall(k){const o=stallObjs[k];if(!o)return;o.roll.visible=S.tp[k]>0;o.dirtFX.g.visible=S.dirty[k];
   setLabel(o.L,`🧻${S.tp[k]}/${TP_CAP}${S.dirty[k]?' <span class="empty">🧹 sujo</span>':''}`);}
 const stallUsable=k=>!S.dirty[k]&&S.tp[k]>0&&!stallObjs[k].busy;
+
+// ---------- Sujeira e animação de limpeza ----------
+const dirtProg={};   // progresso da limpeza neste quadro: 'stall0' -> 0..1
+function crumple(c,sz,parent,x,y,z){const m=new THREE.Mesh(new THREE.IcosahedronGeometry(sz,0),mat(c));m.position.set(x,y,z);m.rotation.set(Math.random()*3,Math.random()*3,0);m.castShadow=true;parent.add(m);return m;}
+function makeFlies(parent,y){const f=[];for(let i=0;i<3;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(0.028,6,4),mat(0x161616));parent.add(m);f.push({m,ph:i*2.1,r:0.22+i*0.09,y:y+i*0.09});}return f;}
+function makeBathDirt(st){const g=new THREE.Group();g.position.set(st.dirt.x,0,st.dirt.z);scene.add(g);
+  const pm=new THREE.MeshLambertMaterial({color:0x9a7a3a,transparent:true,opacity:0.72});
+  const pud=new THREE.Mesh(new THREE.CircleGeometry(0.42,18),pm);pud.rotation.x=-Math.PI/2;pud.position.y=0.012;pud.scale.set(1,0.75,1);g.add(pud);
+  const pud2=new THREE.Mesh(new THREE.CircleGeometry(0.42,14),pm);pud2.rotation.x=-Math.PI/2;pud2.scale.set(0.45,0.4,1);pud2.position.set(0.38,0.013,0.28);g.add(pud2);
+  for(const [x,z] of[[-0.32,0.1],[0.22,-0.28],[0.5,0.38],[-0.1,0.42]])crumple(0xffffff,0.07,g,x,0.06,z);   // papel amassado
+  const strip=new THREE.Mesh(new THREE.PlaneGeometry(0.13,0.8),mat(0xf6f6f6));strip.rotation.x=-Math.PI/2;strip.rotation.z=0.6;strip.position.set(-0.12,0.016,-0.38);g.add(strip); // papel arrastado
+  crumple(0x6b4a2b,0.05,g,0.05,0.035,0.25);crumple(0x6b4a2b,0.035,g,-0.4,0.03,-0.1);
+  return {g,mats:[pm],base:[0.72],flies:makeFlies(g,0.55)};}
+function makeTableDirt(parent){const g=new THREE.Group();parent.add(g);
+  rbox(0.4,0.03,0.3,0xd8323a,0.05,0.79,0,g,0.01);cyl(0.05,0.04,0.14,0xffffff,-0.08,0.87,0.04,g,10);box(0.12,0.04,0.1,0xf6d23a,0.12,0.82,-0.04,g);
+  const tip=cyl(0.05,0.04,0.14,0xffffff,0.3,0.81,-0.25,g,10);tip.rotation.z=Math.PI/2;                        // copo caído
+  const sm=new THREE.MeshLambertMaterial({color:0x7a3b1c,transparent:true,opacity:0.62});
+  const sp=new THREE.Mesh(new THREE.CircleGeometry(0.17,14),sm);sp.rotation.x=-Math.PI/2;sp.position.set(0.22,0.776,-0.12);g.add(sp); // refri derramado
+  crumple(0xffffff,0.05,g,-0.25,0.8,-0.2);crumple(0xffffff,0.045,g,-0.3,0.8,0.24);
+  for(let i=0;i<8;i++)box(0.025,0.015,0.025,0xc98a45,(Math.random()-0.5)*0.7,0.78,(Math.random()-0.5)*0.7,g);        // farelos
+  crumple(0xffffff,0.06,g,0.6,0.05,0.42);crumple(0xd8323a,0.05,g,-0.55,0.04,-0.45);crumple(0xf6d23a,0.05,g,0.1,0.04,0.6); // lixo no chão
+  return {g,mats:[sm],base:[0.62],flies:makeFlies(g,1.0)};}
+function makeMop(){const g=new THREE.Group();
+  const stick=cyl(0.02,0.02,1.25,0xa0703c,0,-0.55,0,g,6);
+  const head=new THREE.Group();head.position.y=-1.2;g.add(head);
+  rbox(0.32,0.05,0.1,0x2f73c9,0,0.04,0,head,0.02);
+  for(let i=0;i<9;i++){const st=cyl(0.018,0.012,0.16,0xdfe9f2,-0.14+i*0.035,-0.05,(i%2)*0.04-0.02,head,5);st.rotation.x=(i%2?0.3:-0.3);}
+  g.visible=false;return g;}
+function attachMop(person){const m=makeMop();m.position.set(0.22,1.05,0.42);m.rotation.x=0.45;person.add(m);return m;}
+function makeCloth(){const c=rbox(0.22,0.03,0.16,0xf2c43a,0,0,0,scene,0.015);c.visible=false;return c;}
+const foam=[];const foamGeo=new THREE.SphereGeometry(0.06,8,6);
+function spawnFoam(pos,y=0.05){if(foam.length>70)return;const m=new THREE.Mesh(foamGeo,new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x2a4a5a,transparent:true,opacity:0.9}));
+  m.position.set(pos.x+(Math.random()-0.5)*0.7,y,pos.z+(Math.random()-0.5)*0.7);m.scale.setScalar(0.5+Math.random());scene.add(m);foam.push({m,life:0.9});}
+// anima o esfregão/pano de quem está limpando e dá retorno visual na sujeira
+function cleanAnim(person,tool,kind,target,prog,dt){
+  if(!tool)return;tool.visible=true;const t=performance.now()/1000;
+  person.mesh.rotation.y=Math.atan2(target.x-person.pos.x,target.z-person.pos.z);
+  if(kind==='stall'){tool.rotation.z=Math.sin(t*9)*0.55;tool.rotation.x=0.45+Math.sin(t*18)*0.08;if(Math.random()<dt*14)spawnFoam(target,0.05);}
+  else{tool.position.set(target.x+Math.cos(t*9)*0.28,0.8,target.z+Math.sin(t*9)*0.2);tool.rotation.y=t*4;if(Math.random()<dt*10)spawnFoam(target,0.82);}
+}
+function updateCleanFX(dt){
+  const t=performance.now()/1000;
+  const fx=(o,key)=>{if(!o||!o.g.visible)return;const p=Math.min(1,dirtProg[key]||0);
+    o.g.scale.setScalar(1-0.65*p);o.mats.forEach((m,i)=>m.opacity=o.base[i]*(1-0.8*p));
+    o.flies.forEach(f=>{f.m.visible=p<0.3;f.m.position.set(Math.cos(t*5+f.ph)*f.r,f.y+Math.sin(t*9+f.ph)*0.06,Math.sin(t*4+f.ph)*f.r);});};
+  stallObjs.forEach((o,k)=>fx(o&&o.dirtFX,'stall'+k));
+  if(snackObjs)snackObjs.tables.forEach((o,k)=>fx(o.dirtFX,'table'+k));
+  for(const k in dirtProg)delete dirtProg[k];
+  for(let i=foam.length-1;i>=0;i--){const f=foam[i];f.life-=dt;f.m.position.y+=dt*0.5;f.m.material.opacity=Math.max(0,f.life);if(f.life<=0){scene.remove(f.m);f.m.material.dispose();foam.splice(i,1);}}
+}
 
 // ---------- Lanchonete ----------
 let snackObjs=null;
@@ -471,8 +520,8 @@ function buildSnackBar(){
   TABLES.forEach((t,k)=>{const g=new THREE.Group();g.position.copy(t);scene.add(g);
     cyl(0.5,0.5,0.06,0xf6efe6,0,0.74,0,g,20);cyl(0.06,0.06,0.72,0x8b919c,0,0.36,0,g,8);cyl(0.28,0.3,0.04,0x8b919c,0,0.02,0,g,14);
     for(const sx of[-0.8,0.8]){rbox(0.42,0.06,0.42,0xe9776a,sx,0.45,0,g,0.03);for(const lx of[-0.16,0.16])for(const lz of[-0.16,0.16])cyl(0.025,0.025,0.43,0x8b919c,sx+lx,0.22,lz,g,6);}
-    const trash=new THREE.Group();g.add(trash);rbox(0.4,0.03,0.3,0xd8323a,0.05,0.79,0,trash,0.01);cyl(0.05,0.04,0.14,0xffffff,-0.08,0.87,0.04,trash,10);box(0.12,0.04,0.1,0xf6d23a,0.12,0.82,-0.04,trash);
-    const L=addLabel('box',()=>t.clone().setY(1.3));snackObjs.tables[k]={g,trash,L,busy:null,clean:0};});
+    const dirtFX=makeTableDirt(g),trash=dirtFX.g;
+    const L=addLabel('box',()=>t.clone().setY(1.3));snackObjs.tables[k]={g,trash,dirtFX,L,busy:null,clean:0};});
   addStoreLabel(V(-5.6,-11.6),'🍔 Lanchonete');
   updateSnack();
 }
@@ -558,6 +607,7 @@ function hire(role,extra={}){const [kind,col]=STAFF_LOOK[role];
   else a.pos=V(0.5,palletZ()+2.2);
   a.mesh.position.copy(a.pos);
   if(role!=='cashier')a.stack=makeStack(a.mesh,6);
+  if(role==='cleaner')a.tool=attachMop(a.mesh);if(role==='waiter')a.tool=makeCloth();
   staff.push(a);return a;
 }
 const reserved=new Map(); // alvo -> funcionário
@@ -566,9 +616,12 @@ function release(a){for(const [k,v] of reserved)if(v===a)reserved.delete(k);}
 function updateStaff(dt){
   for(const a of staff){
     if(a.role==='cashier'){syncMesh(a);continue;}
-    if(a.path&&a.path.length){walk(a,2.8,dt);syncMesh(a);if(a.stack)showStack(a.stack,a.carry,a.type);continue;}
+    if(a.path&&a.path.length){if(a.tool)a.tool.visible=false;walk(a,2.8,dt);syncMesh(a);if(a.stack)showStack(a.stack,a.carry,a.type);continue;}
     a.t+=dt;
     ({stocker:stockerAI,cleaner:cleanerAI,attendant:attendantAI,waiter:waiterAI})[a.role](a,dt);
+    if(a.tool){a.tool.visible=false;
+      if(a.state==='clean'&&!a.path.length){const kind=a.role==='cleaner'?'stall':'table',tgt=kind==='stall'?STALLS[a.job].dirt:TABLES[a.job];
+        dirtProg[kind+a.job]=a.t/(kind==='stall'?1.6:1.2);cleanAnim(a,a.tool,kind,tgt,0,dt);}}
     syncMesh(a);if(a.stack)showStack(a.stack,a.carry,a.type);
   }
 }
@@ -726,7 +779,10 @@ function playerActions(dt){
   let cleaning=null;
   STALLS.forEach((s,k)=>{if(stallObjs[k]&&S.dirty[k]&&p.distanceTo(s.dirt)<1.0)cleaning={kind:'stall',k,pos:s.dirt};});
   if(snackObjs)TABLES.forEach((t,k)=>{if(S.tables[k]&&nearBox(p,t.x,t.z,0.5,0.5,0.8))cleaning={kind:'table',k,pos:t};});
-  if(cleaning){player.cleanT+=dt;if(!player.cleanL)player.cleanL=addLabel('box',()=>player.pos.clone().setY(2.1));
+  if(!player.mop){player.mop=attachMop(player.mesh);player.cloth=makeCloth();}
+  player.mop.visible=false;player.cloth.visible=false;
+  if(cleaning){player.cleanT+=dt;dirtProg[cleaning.kind+cleaning.k]=player.cleanT/1.2;
+    cleanAnim(player,cleaning.kind==='stall'?player.mop:player.cloth,cleaning.kind,cleaning.pos,player.cleanT/1.2,dt);if(!player.cleanL)player.cleanL=addLabel('box',()=>player.pos.clone().setY(2.1));
     setLabel(player.cleanL,`🧹 Limpando<div class="bar"><i style="width:${Math.min(100,player.cleanT/1.2*100)}%"></i></div>`);
     if(player.cleanT>=1.2){if(cleaning.kind==='stall'){S.dirty[cleaning.k]=false;updateStall(cleaning.k);}else{S.tables[cleaning.k]=false;updateSnack();}player.cleanT=0;floatText(p,'Limpo! ✨','#9be7ff');}}
   else{player.cleanT=0;if(player.cleanL){removeLabel(player.cleanL);player.cleanL=null;}}
@@ -1064,7 +1120,7 @@ const moneyEl=document.getElementById('money'),boostEl=document.getElementById('
 let saveT=0,last=performance.now();
 function loop(now){
   const dt=Math.min(0.05,(now-last)/1000);last=now;
-  updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStaff(dt);updateGrill(dt);
+  updatePlayer(dt);updatePads(dt);updateSpawn(dt);updateCustomers(dt);updateStaff(dt);updateGrill(dt);updateCleanFX(dt);
   updateCars(dt);updateWalkers(dt);updateFall(dt);updatePeople(dt);
   eastRow.position.x+=(eastX()-eastRow.position.x)*Math.min(1,dt*1.5);
   sun.position.set(player.pos.x+8,16,player.pos.z+10);sun.target.position.set(player.pos.x+2,0,player.pos.z);
@@ -1119,7 +1175,7 @@ updateCamera(0,true);
 document.getElementById('loading').remove();
 requestAnimationFrame(loop);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
-window.__game={S,player,customers,staff,queues,get grid(){return grid},relayout,rebuildNav,PADS};
+window.__game={S,player,customers,staff,queues,get grid(){return grid},relayout,rebuildNav,PADS,updateStall,updateSnack};
 </script>
 </body>
 </html>
